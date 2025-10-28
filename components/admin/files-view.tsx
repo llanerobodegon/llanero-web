@@ -2,14 +2,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Files, 
-  Upload, 
-  Search, 
-  Download, 
-  Trash2, 
-  Image, 
-  FileText, 
+import {
+  Files,
+  Upload,
+  Search,
+  Download,
+  Trash2,
+  Image as ImageIcon,
+  FileText,
   Video,
   Music,
   Archive
@@ -19,7 +19,7 @@ export function FilesView() {
   const getFileIcon = (type: string) => {
     switch (type) {
       case 'image':
-        return <Image className="w-4 h-4" />
+        return <ImageIcon className="w-4 h-4" />
       case 'video':
         return <Video className="w-4 h-4" />
       case 'audio':
@@ -94,7 +94,7 @@ export function FilesView() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Imágenes</CardTitle>
-            <Image className="h-4 w-4 text-muted-foreground" />
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">1,234</div>

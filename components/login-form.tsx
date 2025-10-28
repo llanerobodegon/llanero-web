@@ -37,7 +37,7 @@ export function LoginForm({
       } else {
         router.push('/admin')
       }
-    } catch (err) {
+    } catch {
       setError('Error al iniciar sesión. Por favor, intenta de nuevo.')
     } finally {
       setIsLoading(false)
