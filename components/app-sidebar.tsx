@@ -18,7 +18,7 @@ import {
   IconSearch,
   IconSettings,
   IconUsers,
-  IconUtensils,
+  IconToolsKitchen2,
 } from "@tabler/icons-react"
 
 import { NavDocuments } from "@/components/nav-documents"
@@ -81,7 +81,7 @@ const restaurantData = {
     {
       title: "Menú",
       url: "/admin/restaurant-products",
-      icon: IconUtensils,
+      icon: IconToolsKitchen2,
     },
     {
       title: "Categorías",
