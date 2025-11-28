@@ -6,6 +6,7 @@ import {
   CreateWarehouseData,
   UpdateWarehouseData,
 } from "@/src/models/warehouse.model";
+import { PaginationParams, PaginatedResponse } from "@/src/types/pagination";
 
 const supabase = createClient();
 
@@ -23,6 +24,8 @@ function transformWarehouse(row: Record<string, unknown>): Warehouse {
     updatedAt: row.updated_at as string,
   };
 }
+
+export type WarehouseWithProductCount = Warehouse & { productCount: number };
 
 export const warehouseService = {
   async getAll(): Promise<Warehouse[]> {
@@ -123,7 +126,7 @@ export const warehouseService = {
     return count || 0;
   },
 
-  async getAllWithProductCount(): Promise<(Warehouse & { productCount: number })[]> {
+  async getAllWithProductCount(): Promise<WarehouseWithProductCount[]> {
     const { data, error } = await supabase
       .from("warehouses")
       .select(`
@@ -140,5 +143,49 @@ export const warehouseService = {
       ...transformWarehouse(row),
       productCount: (row.warehouse_products as { count: number }[])?.[0]?.count || 0,
     }));
+  },
+
+  async getPaginated(
+    params: PaginationParams
+  ): Promise<PaginatedResponse<WarehouseWithProductCount>> {
+    const { page, pageSize } = params;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    // Get total count
+    const { count: totalCount, error: countError } = await supabase
+      .from("warehouses")
+      .select("*", { count: "exact", head: true });
+
+    if (countError) {
+      throw new Error(countError.message);
+    }
+
+    // Get paginated data
+    const { data, error } = await supabase
+      .from("warehouses")
+      .select(`
+        *,
+        warehouse_products(count)
+      `)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const warehouses = (data || []).map((row) => ({
+      ...transformWarehouse(row),
+      productCount: (row.warehouse_products as { count: number }[])?.[0]?.count || 0,
+    }));
+
+    return {
+      data: warehouses,
+      totalCount: totalCount || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((totalCount || 0) / pageSize),
+    };
   },
 };

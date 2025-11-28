@@ -84,11 +84,11 @@ const sidebarData = {
         },
         {
           title: "Categorías",
-          url: "/admin/products/categories",
+          url: "/admin/categories",
         },
         {
           title: "Subcategorías",
-          url: "/admin/products/subcategories",
+          url: "/admin/subcategories",
         },
       ],
     },

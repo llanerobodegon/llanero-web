@@ -13,9 +13,9 @@ export default function AdminLayout({
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col h-screen overflow-hidden">
         <AdminHeader />
-        <main className="flex flex-1 flex-col">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </SidebarInset>

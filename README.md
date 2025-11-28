@@ -36,7 +36,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 ├── app/                    # Next.js App Router
 │   ├── admin/              # Protected admin routes
-│   │   └── warehouses/     # Warehouses module
+│   │   ├── warehouses/     # Warehouses module
+│   │   ├── categories/     # Categories module
+│   │   └── subcategories/  # Subcategories module
 │   └── auth/               # Authentication
 ├── components/             # Shared UI components
 ├── lib/                    # Utilities and configurations
@@ -111,19 +113,56 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## Modules
 
+All modules share a consistent UI pattern:
+- **Title Section:** Module name with total count and description
+- **Action Section:** Search input, filters (where applicable), and add button
+- **Data Table:** Server-side pagination with configurable page size
+- **Skeleton Loading:** Consistent layout during data fetching
+
 ### Warehouses (Bodegones)
 
 Full CRUD implementation for managing warehouses:
 
-- **List:** DataTable with sorting, filtering, and pagination
+- **List:** DataTable with search, sorting, and server-side pagination
 - **Create/Edit:** Side drawer with form validation
 - **Delete:** Confirmation dialog
 - **Features:**
   - Logo upload with drag & drop (Supabase Storage)
   - Active/Inactive status toggle
   - Product count per warehouse
+  - Search by name
   - Skeleton loading states
   - Toast notifications (Sonner)
+
+### Categories (Categorías)
+
+Full CRUD implementation for product categories:
+
+- **List:** DataTable with search, sorting, and server-side pagination
+- **Create/Edit:** Side drawer with form validation
+- **Delete:** Confirmation dialog
+- **Features:**
+  - Image upload with drag & drop
+  - Active/Inactive status toggle
+  - Product count per category
+  - Search by name
+  - Image placeholder in table
+
+### Subcategories (Subcategorías)
+
+Full CRUD implementation for product subcategories:
+
+- **List:** DataTable with search, category filter, and server-side pagination
+- **Create/Edit:** Side drawer with category selector
+- **Delete:** Confirmation dialog
+- **Features:**
+  - Image upload with drag & drop
+  - Parent category assignment
+  - Active/Inactive status toggle
+  - Product count per subcategory
+  - Search by name
+  - Multi-select category filter with checkboxes
+  - Image placeholder in table
 
 ## Supabase Storage
 

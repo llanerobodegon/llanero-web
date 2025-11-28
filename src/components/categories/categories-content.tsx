@@ -3,21 +3,20 @@
 import { useState, useMemo, useRef } from "react"
 import Image from "next/image"
 import { toast } from "sonner"
-import { Plus, Store, Upload, X, Loader2, Trash2, Search } from "lucide-react"
+import { Plus, FolderOpen, Upload, X, Loader2, Trash2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { DataTable } from "@/src/components/warehouses/data-table"
-import { getColumns } from "@/src/components/warehouses/columns"
-import { WarehousesSkeleton } from "@/src/components/warehouses/warehouses-skeleton"
+import { DataTable } from "@/src/components/categories/data-table"
+import { getColumns } from "@/src/components/categories/columns"
+import { CategoriesSkeleton } from "@/src/components/categories/categories-skeleton"
 import { EmptyState } from "@/components/empty-state"
 import {
-  useWarehousesViewModel,
-  WarehouseWithProductCount,
-} from "@/src/viewmodels/useWarehousesViewModel"
-import { CreateWarehouseData } from "@/src/models/warehouse.model"
+  useCategoriesViewModel,
+  CategoryWithProductCount,
+} from "@/src/viewmodels/useCategoriesViewModel"
+import { CreateCategoryData } from "@/src/models/warehouse.model"
 import { uploadService } from "@/src/services/upload.service"
 import {
   Sheet,
@@ -42,60 +41,56 @@ import { Separator } from "@/components/ui/separator"
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
-export function WarehousesContent() {
+export function CategoriesContent() {
   const {
-    warehouses,
+    categories,
     isLoading,
     error,
     pagination,
     setPage,
     setPageSize,
-    createWarehouse,
-    updateWarehouse,
-    deleteWarehouse,
-  } = useWarehousesViewModel()
+    createCategory,
+    updateCategory,
+    deleteCategory,
+  } = useCategoriesViewModel()
 
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [editingWarehouse, setEditingWarehouse] = useState<WarehouseWithProductCount | null>(null)
+  const [editingCategory, setEditingCategory] = useState<CategoryWithProductCount | null>(null)
 
   // Form state
   const [name, setName] = useState("")
-  const [address, setAddress] = useState("")
-  const [phone, setPhone] = useState("")
   const [isActive, setIsActive] = useState(true)
 
-  // Logo state
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
-  const [logoError, setLogoError] = useState<string | null>(null)
+  // Image state
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [warehouseToDelete, setWarehouseToDelete] = useState<WarehouseWithProductCount | null>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryWithProductCount | null>(null)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("")
 
   // Filtered data
-  const filteredWarehouses = useMemo(() => {
-    return warehouses.filter((warehouse) =>
-      warehouse.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCategories = useMemo(() => {
+    return categories.filter((category) =>
+      category.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
-  }, [warehouses, searchQuery])
+  }, [categories, searchQuery])
 
   const resetForm = () => {
     setName("")
-    setAddress("")
-    setPhone("")
     setIsActive(true)
-    setLogoFile(null)
-    setLogoPreview(null)
-    setLogoError(null)
-    setEditingWarehouse(null)
+    setImageFile(null)
+    setImagePreview(null)
+    setImageError(null)
+    setEditingCategory(null)
   }
 
   const openCreateDrawer = () => {
@@ -103,15 +98,13 @@ export function WarehousesContent() {
     setIsDrawerOpen(true)
   }
 
-  const openEditDrawer = (warehouse: WarehouseWithProductCount) => {
-    setEditingWarehouse(warehouse)
-    setName(warehouse.name)
-    setAddress(warehouse.address || "")
-    setPhone(warehouse.phone || "")
-    setIsActive(warehouse.isActive)
-    setLogoPreview(warehouse.logoUrl)
-    setLogoFile(null)
-    setLogoError(null)
+  const openEditDrawer = (category: CategoryWithProductCount) => {
+    setEditingCategory(category)
+    setName(category.name)
+    setIsActive(category.isActive)
+    setImagePreview(category.imageUrl)
+    setImageFile(null)
+    setImageError(null)
     setIsDrawerOpen(true)
   }
 
@@ -133,17 +126,17 @@ export function WarehousesContent() {
   const handleFileSelect = (file: File) => {
     const error = validateFile(file)
     if (error) {
-      setLogoError(error)
+      setImageError(error)
       return
     }
 
-    setLogoError(null)
-    setLogoFile(file)
+    setImageError(null)
+    setImageFile(file)
 
     // Create preview
     const reader = new FileReader()
     reader.onload = (e) => {
-      setLogoPreview(e.target?.result as string)
+      setImagePreview(e.target?.result as string)
     }
     reader.readAsDataURL(file)
   }
@@ -167,10 +160,10 @@ export function WarehousesContent() {
     e.preventDefault()
   }
 
-  const removeLogo = () => {
-    setLogoFile(null)
-    setLogoPreview(null)
-    setLogoError(null)
+  const removeImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    setImageError(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -181,68 +174,66 @@ export function WarehousesContent() {
 
     setIsSubmitting(true)
     try {
-      let logoUrl: string | undefined = editingWarehouse?.logoUrl || undefined
+      let imageUrl: string | undefined = editingCategory?.imageUrl || undefined
 
-      // Upload new logo if selected
-      if (logoFile) {
-        setIsUploadingLogo(true)
+      // Upload new image if selected
+      if (imageFile) {
+        setIsUploadingImage(true)
         try {
-          logoUrl = await uploadService.uploadWarehouseLogo(logoFile)
+          imageUrl = await uploadService.uploadImage(imageFile, "category-images", "categories")
         } catch (err) {
-          console.error("Error uploading logo:", err)
-          setLogoError("Error al subir la imagen")
+          console.error("Error uploading image:", err)
+          setImageError("Error al subir la imagen")
           setIsSubmitting(false)
-          setIsUploadingLogo(false)
+          setIsUploadingImage(false)
           return
         }
-        setIsUploadingLogo(false)
-      } else if (!logoPreview && editingWarehouse?.logoUrl) {
-        // Logo was removed
-        logoUrl = undefined
+        setIsUploadingImage(false)
+      } else if (!imagePreview && editingCategory?.imageUrl) {
+        // Image was removed
+        imageUrl = undefined
       }
 
-      const data: CreateWarehouseData = {
+      const data: CreateCategoryData = {
         name: name.trim(),
-        address: address.trim() || undefined,
-        phone: phone.trim() || undefined,
-        logoUrl,
+        imageUrl,
         isActive,
       }
 
-      if (editingWarehouse) {
-        await updateWarehouse(editingWarehouse.id, data)
-        toast.success("Bodegón actualizado correctamente")
+      if (editingCategory) {
+        await updateCategory(editingCategory.id, data)
+        toast.success("Categoría actualizada correctamente")
       } else {
-        await createWarehouse(data)
-        toast.success("Bodegón creado correctamente")
+        await createCategory(data)
+        toast.success("Categoría creada correctamente")
       }
 
       handleCloseDrawer()
     } catch (err) {
-      console.error("Error saving warehouse:", err)
-      toast.error("Error al guardar el bodegón")
+      console.error("Error saving category:", err)
+      toast.error("Error al guardar la categoría")
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleDeleteClick = (warehouse: WarehouseWithProductCount) => {
-    setWarehouseToDelete(warehouse)
+  const handleDeleteClick = (category: CategoryWithProductCount) => {
+    setCategoryToDelete(category)
     setDeleteDialogOpen(true)
   }
 
   const handleConfirmDelete = async () => {
-    if (!warehouseToDelete) return
+    if (!categoryToDelete) return
 
     try {
-      await deleteWarehouse(warehouseToDelete.id)
-      toast.success("Bodegón eliminado correctamente")
+      await deleteCategory(categoryToDelete.id)
+      toast.success("Categoría eliminada correctamente")
     } catch (err) {
-      console.error("Error deleting warehouse:", err)
-      toast.error("Error al eliminar el bodegón")
+      console.error("Error deleting category:", err)
+      toast.error("Error al eliminar la categoría")
     } finally {
       setDeleteDialogOpen(false)
-      setWarehouseToDelete(null)
+      setCategoryToDelete(null)
     }
   }
 
@@ -260,9 +251,9 @@ export function WarehousesContent() {
       <div className="flex flex-1 flex-col gap-4 px-4 py-[50px] mx-auto w-full max-w-[1200px]">
         {/* Title Section */}
         <div className="mb-[25px]">
-          <h1 className="text-2xl font-semibold">Bodegones</h1>
+          <h1 className="text-2xl font-semibold">Categorías</h1>
           <p className="text-sm text-muted-foreground">
-            Gestiona los bodegones de tu negocio
+            Gestiona las categorías de productos
           </p>
         </div>
 
@@ -271,7 +262,7 @@ export function WarehousesContent() {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar bodegón..."
+              placeholder="Buscar categoría..."
               value=""
               readOnly
               disabled
@@ -280,11 +271,11 @@ export function WarehousesContent() {
           </div>
           <Button disabled className="ml-auto">
             <Plus />
-            Agregar bodegón
+            Agregar categoría
           </Button>
         </div>
 
-        <WarehousesSkeleton />
+        <CategoriesSkeleton />
       </div>
     )
   }
@@ -305,13 +296,13 @@ export function WarehousesContent() {
       {/* Title Section */}
       <div className="mb-[25px]">
         <h1 className="text-2xl font-semibold">
-          Bodegones{" "}
+          Categorías{" "}
           <span className="text-muted-foreground font-normal">
             ({pagination.totalCount})
           </span>
         </h1>
         <p className="text-sm text-muted-foreground">
-          Gestiona los bodegones de tu negocio
+          Gestiona las categorías de productos
         </p>
       </div>
 
@@ -320,7 +311,7 @@ export function WarehousesContent() {
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar bodegón..."
+            placeholder="Buscar categoría..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 w-64"
@@ -328,13 +319,13 @@ export function WarehousesContent() {
         </div>
         <Button onClick={openCreateDrawer} className="ml-auto">
           <Plus />
-          Agregar bodegón
+          Agregar categoría
         </Button>
       </div>
 
-      {filteredWarehouses.length === 0 && searchQuery ? (
+      {filteredCategories.length === 0 && searchQuery ? (
         <div className="rounded-lg border bg-background p-8 text-center">
-          <p className="text-muted-foreground">No se encontraron bodegones con los filtros aplicados</p>
+          <p className="text-muted-foreground">No se encontraron categorías con los filtros aplicados</p>
           <Button
             variant="link"
             onClick={() => setSearchQuery("")}
@@ -343,20 +334,20 @@ export function WarehousesContent() {
             Limpiar filtros
           </Button>
         </div>
-      ) : warehouses.length === 0 ? (
+      ) : categories.length === 0 ? (
         <div className="rounded-lg border bg-background">
           <EmptyState
-            icon={Store}
-            title="No hay bodegones"
-            description="Crea tu primer bodegón para comenzar a gestionar tu inventario"
-            actionLabel="Agregar bodegón"
+            icon={FolderOpen}
+            title="No hay categorías"
+            description="Crea tu primera categoría para organizar tus productos"
+            actionLabel="Agregar categoría"
             onAction={openCreateDrawer}
           />
         </div>
       ) : (
         <DataTable
           columns={columns}
-          data={filteredWarehouses}
+          data={filteredCategories}
           pagination={pagination}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
@@ -370,16 +361,16 @@ export function WarehousesContent() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                  <Store className="h-5 w-5 text-primary" />
+                  <FolderOpen className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <SheetTitle>
-                    {editingWarehouse ? "Editar Bodegón" : "Agregar Bodegón"}
+                    {editingCategory ? "Editar Categoría" : "Agregar Categoría"}
                   </SheetTitle>
                   <SheetDescription>
-                    {editingWarehouse
-                      ? "Modifica la información del bodegón"
-                      : "Completa la información del bodegón"}
+                    {editingCategory
+                      ? "Modifica la información de la categoría"
+                      : "Completa la información de la categoría"}
                   </SheetDescription>
                 </div>
               </div>
@@ -398,11 +389,11 @@ export function WarehousesContent() {
             <div className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">
-                  Nombre del Bodegón <span className="text-destructive">*</span>
+                  Nombre de la Categoría <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="name"
-                  placeholder="Ej: Bodegón Central"
+                  placeholder="Ej: Bebidas"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   disabled={isSubmitting}
@@ -410,30 +401,7 @@ export function WarehousesContent() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Textarea
-                  id="address"
-                  placeholder="Av. Principal #123, Centro"
-                  rows={3}
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  placeholder="+58 412 123 4567"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Logo</Label>
+                <Label>Imagen</Label>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -443,24 +411,24 @@ export function WarehousesContent() {
                   disabled={isSubmitting}
                 />
 
-                {logoPreview ? (
+                {imagePreview ? (
                   <div className="relative rounded-lg border p-4">
                     <div className="flex items-center gap-4">
                       <div className="relative h-20 w-20 rounded-lg overflow-hidden bg-muted">
                         <Image
-                          src={logoPreview}
-                          alt="Logo preview"
+                          src={imagePreview}
+                          alt="Image preview"
                           fill
                           className="object-cover"
                         />
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">
-                          {logoFile?.name || "Logo actual"}
+                          {imageFile?.name || "Imagen actual"}
                         </p>
-                        {logoFile && (
+                        {imageFile && (
                           <p className="text-xs text-muted-foreground">
-                            {(logoFile.size / 1024).toFixed(1)} KB
+                            {(imageFile.size / 1024).toFixed(1)} KB
                           </p>
                         )}
                       </div>
@@ -468,7 +436,7 @@ export function WarehousesContent() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={removeLogo}
+                        onClick={removeImage}
                         disabled={isSubmitting}
                         className="text-muted-foreground hover:text-destructive"
                       >
@@ -487,7 +455,7 @@ export function WarehousesContent() {
                         : "hover:border-primary/50"
                     }`}
                   >
-                    {isUploadingLogo ? (
+                    {isUploadingImage ? (
                       <Loader2 className="h-8 w-8 mx-auto text-muted-foreground mb-2 animate-spin" />
                     ) : (
                       <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
@@ -502,8 +470,8 @@ export function WarehousesContent() {
                   </div>
                 )}
 
-                {logoError && (
-                  <p className="text-sm text-destructive">{logoError}</p>
+                {imageError && (
+                  <p className="text-sm text-destructive">{imageError}</p>
                 )}
               </div>
 
@@ -511,7 +479,7 @@ export function WarehousesContent() {
                 <Label>Estado</Label>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    Bodegón activo
+                    Categoría activa
                   </span>
                   <Switch
                     checked={isActive}
@@ -541,16 +509,16 @@ export function WarehousesContent() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {isUploadingLogo
+                    {isUploadingImage
                       ? "Subiendo imagen..."
-                      : editingWarehouse
+                      : editingCategory
                       ? "Guardando..."
                       : "Agregando..."}
                   </>
-                ) : editingWarehouse ? (
+                ) : editingCategory ? (
                   "Guardar cambios"
                 ) : (
-                  "Agregar Bodegón"
+                  "Agregar Categoría"
                 )}
               </Button>
             </div>
@@ -562,10 +530,10 @@ export function WarehousesContent() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar bodegón?</AlertDialogTitle>
+            <AlertDialogTitle>¿Eliminar categoría?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminará permanentemente el
-              bodegón <strong>{warehouseToDelete?.name}</strong> y todos sus
+              Esta acción no se puede deshacer. Se eliminará permanentemente la
+              categoría <strong>{categoryToDelete?.name}</strong> y todos sus
               datos asociados.
             </AlertDialogDescription>
           </AlertDialogHeader>
