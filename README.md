@@ -42,7 +42,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │   │   ├── inventory/      # Products/Inventory module
 │   │   │   ├── new/        # Add product page
 │   │   │   └── [id]/edit/  # Edit product page
-│   │   └── payment-methods/ # Payment methods module
+│   │   ├── payment-methods/ # Payment methods module
+│   │   └── team/           # Team members module
+│   ├── api/
+│   │   └── team/           # Team API route (server-side user creation)
 │   └── auth/               # Authentication
 ├── components/             # Shared UI components
 ├── lib/                    # Utilities and configurations
@@ -223,6 +226,22 @@ Full CRUD implementation for payment methods:
   - Active/Inactive status toggle
   - Holder name display in table (optional field)
   - Search by bank, email, account number, or phone
+
+### Team (Equipo)
+
+Full CRUD implementation for team member management:
+
+- **List:** DataTable with search and server-side pagination
+- **Create/Edit:** Side drawer with role and warehouse assignment
+- **Delete:** Confirmation dialog
+- **Features:**
+  - Role assignment (Administrador, Gerente, Repartidor)
+  - Multi-select warehouse assignment with checkboxes
+  - Avatar with initials in table
+  - Phone codes for Venezuela (0412, 0414, 0416, 0422, 0424, 0426)
+  - Active/Inactive status toggle
+  - Server-side user creation via API route (secure service role key)
+  - Search by name or email
 
 ## Supabase Storage
 

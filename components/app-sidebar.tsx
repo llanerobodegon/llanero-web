@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { Package, Store, UtensilsCrossed, Building2, CreditCard } from "lucide-react"
+import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -101,6 +101,11 @@ const sidebarData = {
       title: "Métodos de Pago",
       url: "/admin/payment-methods",
       icon: CreditCard,
+    },
+    {
+      title: "Equipo",
+      url: "/admin/team",
+      icon: Users,
     },
   ],
 }

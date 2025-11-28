@@ -23,6 +23,7 @@ const routeDisplayNames: Record<string, string> = {
   categories: "Categorías",
   subcategories: "Subcategorías",
   "payment-methods": "Métodos de Pago",
+  team: "Equipo",
   new: "Nuevo",
 }
 
