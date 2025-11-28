@@ -17,6 +17,7 @@ import { useBreadcrumb } from "@/src/contexts/breadcrumb-context"
 // Route segment to display name mapping (UI text in Spanish)
 const routeDisplayNames: Record<string, string> = {
   admin: "Dashboard",
+  orders: "Pedidos",
   warehouses: "Bodegones",
   products: "Productos",
   inventory: "Inventario",
@@ -25,6 +26,7 @@ const routeDisplayNames: Record<string, string> = {
   "payment-methods": "Métodos de Pago",
   team: "Equipo",
   delivery: "Repartidores",
+  customers: "Clientes",
   new: "Nuevo",
 }
 

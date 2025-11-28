@@ -36,6 +36,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 ├── app/                    # Next.js App Router
 │   ├── admin/              # Protected admin routes
+│   │   ├── orders/         # Orders module
 │   │   ├── warehouses/     # Warehouses module
 │   │   ├── categories/     # Categories module
 │   │   ├── subcategories/  # Subcategories module
@@ -44,7 +45,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │   │   │   └── [id]/edit/  # Edit product page
 │   │   ├── payment-methods/ # Payment methods module
 │   │   ├── team/           # Team members module
-│   │   └── delivery/       # Delivery members module
+│   │   ├── delivery/       # Delivery members module
+│   │   └── customers/      # Customers module (read-only)
 │   ├── api/
 │   │   ├── team/           # Team API route (server-side user creation)
 │   │   └── delivery/       # Delivery API route (server-side user creation)
@@ -136,9 +138,46 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │ is_active         │
 │ created_by        │
 └───────────────────┘
+
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   orders    │      │ order_items │      │  addresses  │
+├─────────────┤      ├─────────────┤      └─────────────┘
+│ id (PK)     │◄─────│ order_id    │
+│ order_number│      │ id (PK)     │
+│ user_id     │──────│ product_id  │
+│ warehouse_id│      │ product_name│  (snapshot)
+│ address_id  │      │ quantity    │
+│ delivery_   │      │ unit_price_usd│
+│ person_id   │      │ unit_price_bs│
+│ delivery_type│     │ total_usd   │
+│ delivery_code│     │ total_bs    │
+│ status      │      └─────────────┘
+│ payment_status│
+│ payment_method_type│
+│ payment_bank │
+│ payment_reference│
+│ payment_proof_url│
+│ subtotal_usd │
+│ subtotal_bs  │
+│ delivery_fee_usd│
+│ delivery_fee_bs│
+│ total_usd    │
+│ total_bs     │
+│ exchange_rate│
+│ customer_notes│
+│ admin_notes  │
+│ confirmed_at │
+│ delivered_at │
+│ cancelled_at │
+│ cancellation_reason│
+└─────────────┘
 ```
 
 **Roles:** `customer` | `admin` | `manager` | `delivery`
+
+**Order Status:** `pending` → `confirmed` → `preparing` → `on_delivery` → `delivered` → `completed` | `cancelled`
+
+**Payment Status:** `pending` → `verified` | `rejected`
 
 ## Modules
 
@@ -266,6 +305,43 @@ Full CRUD implementation for delivery member management:
   - Current user cannot edit/delete themselves
   - Search by name or email
   - Separate module from Team (filtered by delivery role only)
+
+### Customers (Clientes)
+
+Read-only module for viewing registered customers:
+
+- **List:** DataTable with search and server-side pagination
+- **Features:**
+  - Avatar with initials (first letter of first and last name)
+  - Display: name, email, registration date
+  - Search by name or email
+  - No create/edit/delete functionality (customers self-register)
+  - Filtered by customer role only
+
+### Orders (Pedidos)
+
+Full order management implementation:
+
+- **List:** DataTable with search, status filter, and server-side pagination
+- **View/Edit:** Side drawer with full order details and admin controls
+- **Features:**
+  - Auto-generated order number (ORD-00001, ORD-00002, etc.)
+  - 4-digit delivery verification code (customer provides to delivery person)
+  - Dual currency support (USD and Bolívares with exchange rate)
+  - Order status flow: pending → confirmed → preparing → on_delivery → delivered → completed | cancelled
+  - Payment status: pending → verified | rejected
+  - Delivery types: pickup (retiro) or delivery
+  - Payment methods: Pago Móvil, Transferencia, Zelle, Banesco Panamá
+  - Payment proof image upload
+  - Customer and delivery address information
+  - Order items with product snapshots (name, price at time of purchase)
+  - Subtotal, delivery fee, and total calculation
+  - Delivery person assignment
+  - Admin notes (internal)
+  - Customer notes
+  - Timestamps: created, confirmed, delivered, cancelled
+  - Search by order number, customer name, or email
+  - Status filter dropdown
 
 ## Supabase Storage
 
