@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users } from "lucide-react"
+import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users, Truck } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -106,6 +106,11 @@ const sidebarData = {
       title: "Equipo",
       url: "/admin/team",
       icon: Users,
+    },
+    {
+      title: "Repartidores",
+      url: "/admin/delivery",
+      icon: Truck,
     },
   ],
 }

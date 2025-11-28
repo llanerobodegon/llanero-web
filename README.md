@@ -43,9 +43,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │   │   │   ├── new/        # Add product page
 │   │   │   └── [id]/edit/  # Edit product page
 │   │   ├── payment-methods/ # Payment methods module
-│   │   └── team/           # Team members module
+│   │   ├── team/           # Team members module
+│   │   └── delivery/       # Delivery members module
 │   ├── api/
-│   │   └── team/           # Team API route (server-side user creation)
+│   │   ├── team/           # Team API route (server-side user creation)
+│   │   └── delivery/       # Delivery API route (server-side user creation)
 │   └── auth/               # Authentication
 ├── components/             # Shared UI components
 ├── lib/                    # Utilities and configurations
@@ -77,6 +79,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
                   │ id_type   │     └─────────────┘
                   │ id_number │
                   │ is_active │
+                  │ delivery_status│  -- available | on_delivery | unavailable (for delivery role)
                   └───────────┘
 
 ┌─────────────┐    ┌───────────────┐    ┌─────────────┐
@@ -235,7 +238,7 @@ Full CRUD implementation for team member management:
 - **Create/Edit:** Side drawer with role and warehouse assignment
 - **Delete:** Confirmation dialog with loading state
 - **Features:**
-  - Role assignment (Administrador, Gerente, Repartidor)
+  - Role assignment (Administrador, Gerente)
   - Multi-select warehouse assignment with checkboxes
   - Avatar with initials in table
   - Phone codes for Venezuela (0412, 0414, 0416, 0422, 0424, 0426)
@@ -244,6 +247,25 @@ Full CRUD implementation for team member management:
   - Server-side user creation/deletion via API route (secure service role key)
   - Current user cannot edit/delete themselves
   - Search by name or email
+
+### Delivery (Repartidores)
+
+Full CRUD implementation for delivery member management:
+
+- **List:** DataTable with search and server-side pagination
+- **Create/Edit:** Side drawer with warehouse assignment and delivery status
+- **Delete:** Confirmation dialog with loading state
+- **Features:**
+  - Delivery status management (Disponible, En Delivery, No Disponible)
+  - Multi-select warehouse assignment with checkboxes
+  - Avatar with initials in table
+  - Phone codes for Venezuela (0412, 0414, 0416, 0422, 0424, 0426)
+  - Color-coded status badges (green: available, blue: on delivery, gray: unavailable)
+  - Email invitation for new users (set password flow)
+  - Server-side user creation/deletion via API route (secure service role key)
+  - Current user cannot edit/delete themselves
+  - Search by name or email
+  - Separate module from Team (filtered by delivery role only)
 
 ## Supabase Storage
 

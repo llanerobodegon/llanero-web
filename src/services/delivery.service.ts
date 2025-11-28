@@ -5,20 +5,14 @@ import { PaginationParams, PaginatedResponse } from "@/src/types/pagination"
 
 const supabase = createClient()
 
-export type RoleName = "admin" | "manager"
-
-export interface Role {
-  id: number
-  name: string
-  description: string | null
-}
-
 export interface Warehouse {
   id: string
   name: string
 }
 
-export interface TeamMember {
+export type DeliveryStatus = "available" | "on_delivery" | "unavailable"
+
+export interface DeliveryMember {
   id: string
   firstName: string
   lastName: string
@@ -28,24 +22,25 @@ export interface TeamMember {
   roleId: number
   roleName: string
   isActive: boolean
+  deliveryStatus: DeliveryStatus
   warehouses: Warehouse[]
   createdAt: string
   updatedAt: string
 }
 
-export interface CreateTeamMemberData {
+export interface CreateDeliveryMemberData {
   firstName: string
   lastName: string
   email: string
   phoneCode?: string | null
   phone?: string | null
-  roleId: number
   isActive?: boolean
+  deliveryStatus?: DeliveryStatus
   warehouseIds?: string[]
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapRowToTeamMember(row: any): TeamMember {
+function mapRowToDeliveryMember(row: any): DeliveryMember {
   return {
     id: row.id,
     firstName: row.first_name,
@@ -56,6 +51,7 @@ function mapRowToTeamMember(row: any): TeamMember {
     roleId: row.role_id,
     roleName: row.roles?.name || "",
     isActive: row.is_active,
+    deliveryStatus: row.delivery_status || "available",
     warehouses: (row.warehouse_users || []).map((wu: { warehouses: { id: string; name: string } }) => ({
       id: wu.warehouses.id,
       name: wu.warehouses.name,
@@ -65,20 +61,15 @@ function mapRowToTeamMember(row: any): TeamMember {
   }
 }
 
-class TeamService {
-  async getRoles(): Promise<Role[]> {
-    const { data, error } = await supabase
+class DeliveryService {
+  private async getDeliveryRoleId(): Promise<number | null> {
+    const { data } = await supabase
       .from("roles")
-      .select("*")
-      .in("name", ["admin", "manager"])
-      .order("id")
+      .select("id")
+      .eq("name", "delivery")
+      .single()
 
-    if (error) {
-      console.error("Error fetching roles:", error)
-      throw new Error("Failed to fetch roles")
-    }
-
-    return data || []
+    return data?.id || null
   }
 
   async getWarehouses(): Promise<Warehouse[]> {
@@ -97,22 +88,15 @@ class TeamService {
   }
 
   async getPaginated(
-    params: PaginationParams,
-    filters?: { roleId?: number }
-  ): Promise<PaginatedResponse<TeamMember>> {
+    params: PaginationParams
+  ): Promise<PaginatedResponse<DeliveryMember>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 
-    // Get role IDs for team members (admin and manager, excluding delivery)
-    const { data: teamRoles } = await supabase
-      .from("roles")
-      .select("id")
-      .in("name", ["admin", "manager"])
+    const deliveryRoleId = await this.getDeliveryRoleId()
 
-    const teamRoleIds = teamRoles?.map((r) => r.id) || []
-
-    if (teamRoleIds.length === 0) {
+    if (!deliveryRoleId) {
       return {
         data: [],
         totalCount: 0,
@@ -123,24 +107,18 @@ class TeamService {
     }
 
     // Build count query
-    let countQuery = supabase
+    const { count: totalCount, error: countError } = await supabase
       .from("users")
       .select("*", { count: "exact", head: true })
-      .in("role_id", teamRoleIds)
-
-    if (filters?.roleId) {
-      countQuery = countQuery.eq("role_id", filters.roleId)
-    }
-
-    const { count: totalCount, error: countError } = await countQuery
+      .eq("role_id", deliveryRoleId)
 
     if (countError) {
-      console.error("Error counting team members:", countError)
-      throw new Error("Failed to count team members")
+      console.error("Error counting delivery members:", countError)
+      throw new Error("Failed to count delivery members")
     }
 
     // Build data query
-    let dataQuery = supabase
+    const { data, error } = await supabase
       .from("users")
       .select(`
         *,
@@ -149,22 +127,16 @@ class TeamService {
           warehouses (id, name)
         )
       `)
-      .in("role_id", teamRoleIds)
+      .eq("role_id", deliveryRoleId)
       .order("created_at", { ascending: false })
       .range(from, to)
 
-    if (filters?.roleId) {
-      dataQuery = dataQuery.eq("role_id", filters.roleId)
-    }
-
-    const { data, error } = await dataQuery
-
     if (error) {
-      console.error("Error fetching team members:", error)
-      throw new Error("Failed to fetch team members")
+      console.error("Error fetching delivery members:", error)
+      throw new Error("Failed to fetch delivery members")
     }
 
-    const items: TeamMember[] = (data || []).map(mapRowToTeamMember)
+    const items: DeliveryMember[] = (data || []).map(mapRowToDeliveryMember)
 
     return {
       data: items,
@@ -175,7 +147,7 @@ class TeamService {
     }
   }
 
-  async getById(id: string): Promise<TeamMember | null> {
+  async getById(id: string): Promise<DeliveryMember | null> {
     const { data, error } = await supabase
       .from("users")
       .select(`
@@ -190,16 +162,22 @@ class TeamService {
 
     if (error) {
       if (error.code === "PGRST116") return null
-      console.error("Error fetching team member:", error)
-      throw new Error("Failed to fetch team member")
+      console.error("Error fetching delivery member:", error)
+      throw new Error("Failed to fetch delivery member")
     }
 
-    return mapRowToTeamMember(data)
+    return mapRowToDeliveryMember(data)
   }
 
-  async create(data: CreateTeamMemberData): Promise<TeamMember> {
-    // Call the API route to create the user (uses service role key server-side)
-    const response = await fetch("/api/team", {
+  async create(data: CreateDeliveryMemberData): Promise<DeliveryMember> {
+    const deliveryRoleId = await this.getDeliveryRoleId()
+
+    if (!deliveryRoleId) {
+      throw new Error("Delivery role not found")
+    }
+
+    // Call the API route to create the user
+    const response = await fetch("/api/delivery", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -210,7 +188,7 @@ class TeamService {
         email: data.email,
         phoneCode: data.phoneCode,
         phone: data.phone,
-        roleId: data.roleId,
+        roleId: deliveryRoleId,
         isActive: data.isActive,
         warehouseIds: data.warehouseIds,
       }),
@@ -219,21 +197,21 @@ class TeamService {
     const result = await response.json()
 
     if (!response.ok) {
-      throw new Error(result.error || "Failed to create user")
+      throw new Error(result.error || "Failed to create delivery member")
     }
 
-    return mapRowToTeamMember(result.data)
+    return mapRowToDeliveryMember(result.data)
   }
 
-  async update(id: string, data: Partial<CreateTeamMemberData>): Promise<TeamMember> {
+  async update(id: string, data: Partial<CreateDeliveryMemberData>): Promise<DeliveryMember> {
     const updateData: Record<string, unknown> = {}
 
     if (data.firstName !== undefined) updateData.first_name = data.firstName
     if (data.lastName !== undefined) updateData.last_name = data.lastName
     if (data.phoneCode !== undefined) updateData.phone_code = data.phoneCode
     if (data.phone !== undefined) updateData.phone = data.phone
-    if (data.roleId !== undefined) updateData.role_id = data.roleId
     if (data.isActive !== undefined) updateData.is_active = data.isActive
+    if (data.deliveryStatus !== undefined) updateData.delivery_status = data.deliveryStatus
 
     if (Object.keys(updateData).length > 0) {
       const { error } = await supabase
@@ -242,8 +220,8 @@ class TeamService {
         .eq("id", id)
 
       if (error) {
-        console.error("Error updating team member:", error)
-        throw new Error("Failed to update team member")
+        console.error("Error updating delivery member:", error)
+        throw new Error("Failed to update delivery member")
       }
     }
 
@@ -279,38 +257,46 @@ class TeamService {
   }
 
   async delete(id: string): Promise<void> {
-    // Call the API route to delete the user (uses service role key server-side)
-    const response = await fetch(`/api/team?id=${id}`, {
+    // Call the API route to delete the user
+    const response = await fetch(`/api/delivery?id=${id}`, {
       method: "DELETE",
     })
 
     const result = await response.json()
 
     if (!response.ok) {
-      throw new Error(result.error || "Failed to delete user")
+      throw new Error(result.error || "Failed to delete delivery member")
     }
   }
 }
 
-export const teamService = new TeamService()
+export const deliveryService = new DeliveryService()
 
 // Helper functions for display
-export function getRoleLabel(roleName: string): string {
-  const labels: Record<string, string> = {
-    admin: "Administrador",
-    manager: "Gerente",
-    delivery: "Repartidor",
-    customer: "Cliente",
-  }
-  return labels[roleName] || roleName
-}
-
-export function getFullName(member: TeamMember): string {
+export function getFullName(member: DeliveryMember): string {
   return `${member.firstName} ${member.lastName}`.trim()
 }
 
-export function getInitials(member: TeamMember): string {
+export function getInitials(member: DeliveryMember): string {
   const first = member.firstName?.[0] || ""
   const last = member.lastName?.[0] || ""
   return (first + last).toUpperCase()
+}
+
+export function getDeliveryStatusLabel(status: DeliveryStatus): string {
+  const labels: Record<DeliveryStatus, string> = {
+    available: "Disponible",
+    on_delivery: "En Delivery",
+    unavailable: "No Disponible",
+  }
+  return labels[status] || status
+}
+
+export function getDeliveryStatusColor(status: DeliveryStatus): string {
+  const colors: Record<DeliveryStatus, string> = {
+    available: "bg-green-500",
+    on_delivery: "bg-blue-500",
+    unavailable: "bg-gray-400",
+  }
+  return colors[status] || "bg-gray-400"
 }
