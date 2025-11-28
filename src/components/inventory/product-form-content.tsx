@@ -179,9 +179,6 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
             // Set breadcrumb override with product name
             setOverride(productId, product.name)
 
-            // Update page title
-            document.title = `Editar Producto | Llanero`
-
             if (product.sku || product.barcode) {
               setHasSkuBarcode(true)
               setSku(product.sku || "")

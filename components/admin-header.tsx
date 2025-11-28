@@ -22,6 +22,7 @@ const routeDisplayNames: Record<string, string> = {
   inventory: "Inventario",
   categories: "Categorías",
   subcategories: "Subcategorías",
+  "payment-methods": "Métodos de Pago",
   new: "Nuevo",
 }
 

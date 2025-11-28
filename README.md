@@ -39,9 +39,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │   │   ├── warehouses/     # Warehouses module
 │   │   ├── categories/     # Categories module
 │   │   ├── subcategories/  # Subcategories module
-│   │   └── inventory/      # Products/Inventory module
-│   │       ├── new/        # Add product page
-│   │       └── [id]/edit/  # Edit product page
+│   │   ├── inventory/      # Products/Inventory module
+│   │   │   ├── new/        # Add product page
+│   │   │   └── [id]/edit/  # Edit product page
+│   │   └── payment-methods/ # Payment methods module
 │   └── auth/               # Authentication
 ├── components/             # Shared UI components
 ├── lib/                    # Utilities and configurations
@@ -111,6 +112,24 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │ warehouse_id    │
 │ user_id         │
 └─────────────────┘
+
+┌───────────────────┐
+│ payment_methods   │
+├───────────────────┤
+│ id (PK)           │
+│ scope             │  -- nacional | internacional
+│ type              │  -- pago_movil | transferencia | zelle | banesco_panama
+│ bank              │
+│ document_type     │  -- V | J | E
+│ document_number   │
+│ phone_code        │
+│ phone_number      │
+│ account_number    │
+│ email             │
+│ holder_name       │
+│ is_active         │
+│ created_by        │
+└───────────────────┘
 ```
 
 **Roles:** `customer` | `admin` | `manager` | `delivery`
@@ -187,6 +206,23 @@ Full CRUD implementation for product management:
   - Dynamic breadcrumb showing product name
   - Automatic image deletion from storage on product delete
   - Edit page with delete button
+
+### Payment Methods (Métodos de Pago)
+
+Full CRUD implementation for payment methods:
+
+- **List:** DataTable with search and server-side pagination
+- **Create/Edit:** Side drawer with dynamic form based on payment type
+- **Delete:** Confirmation dialog
+- **Features:**
+  - Support for Nacional (Pago Móvil, Transferencia) and Internacional (Zelle, Banesco Panamá)
+  - Dynamic form fields based on payment type selection
+  - Venezuelan banks dropdown with all major banks
+  - Phone codes for Venezuela (0412, 0414, 0416, 0422, 0424, 0426)
+  - Document type selector (V, J, E) with document number
+  - Active/Inactive status toggle
+  - Holder name display in table (optional field)
+  - Search by bank, email, account number, or phone
 
 ## Supabase Storage
 

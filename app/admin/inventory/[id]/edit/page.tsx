@@ -1,4 +1,9 @@
+import { Metadata } from "next"
 import { ProductFormContent } from "@/src/components/inventory/product-form-content"
+
+export const metadata: Metadata = {
+  title: "Editar Producto",
+}
 
 interface EditProductPageProps {
   params: Promise<{ id: string }>
