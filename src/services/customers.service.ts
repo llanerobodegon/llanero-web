@@ -36,7 +36,8 @@ class CustomersService {
   }
 
   async getPaginated(
-    params: PaginationParams
+    params: PaginationParams,
+    filters?: { warehouseId?: string }
   ): Promise<PaginatedResponse<Customer>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -54,11 +55,40 @@ class CustomersService {
       }
     }
 
+    // If filtering by warehouse, get customer IDs who ordered from that warehouse
+    let customerIdsInWarehouse: string[] | null = null
+    if (filters?.warehouseId) {
+      const { data: warehouseOrders } = await supabase
+        .from("orders")
+        .select("user_id")
+        .eq("warehouse_id", filters.warehouseId)
+
+      // Get unique user IDs
+      const uniqueUserIds = [...new Set((warehouseOrders || []).map((o) => o.user_id))]
+      customerIdsInWarehouse = uniqueUserIds
+
+      if (customerIdsInWarehouse.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        }
+      }
+    }
+
     // Build count query
-    const { count: totalCount, error: countError } = await supabase
+    let countQuery = supabase
       .from("users")
       .select("*", { count: "exact", head: true })
       .eq("role_id", customerRoleId)
+
+    if (customerIdsInWarehouse) {
+      countQuery = countQuery.in("id", customerIdsInWarehouse)
+    }
+
+    const { count: totalCount, error: countError } = await countQuery
 
     if (countError) {
       console.error("Error counting customers:", countError)
@@ -66,12 +96,18 @@ class CustomersService {
     }
 
     // Build data query
-    const { data, error } = await supabase
+    let dataQuery = supabase
       .from("users")
       .select("id, first_name, last_name, email, created_at")
       .eq("role_id", customerRoleId)
       .order("created_at", { ascending: false })
       .range(from, to)
+
+    if (customerIdsInWarehouse) {
+      dataQuery = dataQuery.in("id", customerIdsInWarehouse)
+    }
+
+    const { data, error } = await dataQuery
 
     if (error) {
       console.error("Error fetching customers:", error)

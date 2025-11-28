@@ -62,11 +62,32 @@ function mapRowToProduct(row: any): Product {
 class ProductService {
   async getPaginated(
     params: PaginationParams,
-    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[] }
+    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string }
   ): Promise<PaginatedResponse<Product>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
+
+    // If filtering by warehouse, get product IDs first
+    let productIdsInWarehouse: string[] | null = null
+    if (filters?.warehouseId) {
+      const { data: warehouseProducts } = await supabase
+        .from("warehouse_products")
+        .select("product_id")
+        .eq("warehouse_id", filters.warehouseId)
+
+      productIdsInWarehouse = (warehouseProducts || []).map((wp) => wp.product_id)
+
+      if (productIdsInWarehouse.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        }
+      }
+    }
 
     // Build count query
     let countQuery = supabase
@@ -78,6 +99,9 @@ class ProductService {
     }
     if (filters?.subcategoryIds && filters.subcategoryIds.length > 0) {
       countQuery = countQuery.in("subcategory_id", filters.subcategoryIds)
+    }
+    if (productIdsInWarehouse) {
+      countQuery = countQuery.in("id", productIdsInWarehouse)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -120,6 +144,9 @@ class ProductService {
     }
     if (filters?.subcategoryIds && filters.subcategoryIds.length > 0) {
       dataQuery = dataQuery.in("subcategory_id", filters.subcategoryIds)
+    }
+    if (productIdsInWarehouse) {
+      dataQuery = dataQuery.in("id", productIdsInWarehouse)
     }
 
     const { data, error } = await dataQuery

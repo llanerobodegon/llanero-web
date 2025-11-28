@@ -98,7 +98,7 @@ class TeamService {
 
   async getPaginated(
     params: PaginationParams,
-    filters?: { roleId?: number }
+    filters?: { roleId?: number; warehouseId?: string }
   ): Promise<PaginatedResponse<TeamMember>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -122,6 +122,27 @@ class TeamService {
       }
     }
 
+    // If filtering by warehouse, get user IDs first
+    let userIdsInWarehouse: string[] | null = null
+    if (filters?.warehouseId) {
+      const { data: warehouseUsers } = await supabase
+        .from("warehouse_users")
+        .select("user_id")
+        .eq("warehouse_id", filters.warehouseId)
+
+      userIdsInWarehouse = (warehouseUsers || []).map((wu) => wu.user_id)
+
+      if (userIdsInWarehouse.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        }
+      }
+    }
+
     // Build count query
     let countQuery = supabase
       .from("users")
@@ -130,6 +151,9 @@ class TeamService {
 
     if (filters?.roleId) {
       countQuery = countQuery.eq("role_id", filters.roleId)
+    }
+    if (userIdsInWarehouse) {
+      countQuery = countQuery.in("id", userIdsInWarehouse)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -155,6 +179,9 @@ class TeamService {
 
     if (filters?.roleId) {
       dataQuery = dataQuery.eq("role_id", filters.roleId)
+    }
+    if (userIdsInWarehouse) {
+      dataQuery = dataQuery.in("id", userIdsInWarehouse)
     }
 
     const { data, error } = await dataQuery

@@ -9,6 +9,7 @@ import {
   PaymentStatus,
   UpdateOrderData,
 } from "@/src/services/orders.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 export type { Order, OrderListItem, OrderStatus, PaymentStatus, UpdateOrderData }
 
@@ -39,6 +40,7 @@ interface UseOrdersViewModelReturn {
 }
 
 export function useOrdersViewModel(): UseOrdersViewModelReturn {
+  const { selectedWarehouse } = useWarehouseContext()
   const [orders, setOrders] = useState<OrderListItem[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [deliveryMembers, setDeliveryMembers] = useState<{ id: string; name: string }[]>([])
@@ -56,7 +58,13 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
       setIsLoading(true)
       setError(null)
 
-      const response = await ordersService.getPaginated({ page, pageSize }, filters)
+      const response = await ordersService.getPaginated(
+        { page, pageSize },
+        {
+          ...filters,
+          warehouseId: selectedWarehouse?.id,
+        }
+      )
 
       setOrders(response.data)
       setTotalCount(response.totalCount)
@@ -67,7 +75,7 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, pageSize, filters])
+  }, [page, pageSize, filters, selectedWarehouse])
 
   const fetchDeliveryMembers = useCallback(async () => {
     try {
@@ -77,6 +85,11 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
       console.error("Error fetching delivery members:", err)
     }
   }, [])
+
+  // Reset page when warehouse changes
+  useEffect(() => {
+    setPage(1)
+  }, [selectedWarehouse])
 
   useEffect(() => {
     fetchOrders()

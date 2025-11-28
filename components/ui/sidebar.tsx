@@ -534,7 +534,9 @@ function SidebarMenuButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger asChild suppressHydrationWarning>
+        {button}
+      </TooltipTrigger>
       <TooltipContent
         side="right"
         align="center"

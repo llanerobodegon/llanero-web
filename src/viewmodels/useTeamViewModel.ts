@@ -8,6 +8,7 @@ import {
   Role,
   Warehouse,
 } from "@/src/services/team.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 export type { TeamMember, CreateTeamMemberData, Role, Warehouse }
 
@@ -36,6 +37,7 @@ interface UseTeamViewModelReturn {
 }
 
 export function useTeamViewModel(): UseTeamViewModelReturn {
+  const { selectedWarehouse } = useWarehouseContext()
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -54,7 +56,10 @@ export function useTeamViewModel(): UseTeamViewModelReturn {
 
       const response = await teamService.getPaginated(
         { page, pageSize },
-        filters
+        {
+          ...filters,
+          warehouseId: selectedWarehouse?.id,
+        }
       )
 
       setTeamMembers(response.data)
@@ -66,7 +71,7 @@ export function useTeamViewModel(): UseTeamViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, pageSize, filters])
+  }, [page, pageSize, filters, selectedWarehouse])
 
   const fetchRolesAndWarehouses = useCallback(async () => {
     try {
@@ -80,6 +85,11 @@ export function useTeamViewModel(): UseTeamViewModelReturn {
       console.error("Error fetching roles/warehouses:", err)
     }
   }, [])
+
+  // Reset page when warehouse changes
+  useEffect(() => {
+    setPage(1)
+  }, [selectedWarehouse])
 
   useEffect(() => {
     fetchTeamMembers()

@@ -9,6 +9,7 @@ import {
   DailySales,
   TopProduct,
 } from "@/src/services/dashboard.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 export type { DashboardStats, RecentOrder, DailySales, TopProduct }
 
@@ -24,6 +25,7 @@ interface UsedashboardViewModelReturn {
 }
 
 export function useDashboardViewModel(): UsedashboardViewModelReturn {
+  const { selectedWarehouse } = useWarehouseContext()
   const [userName, setUserName] = useState<string>("Usuario")
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
@@ -66,11 +68,13 @@ export function useDashboardViewModel(): UsedashboardViewModelReturn {
       setIsLoading(true)
       setError(null)
 
+      const warehouseId = selectedWarehouse?.id
+
       const [statsData, ordersData, salesData, productsData] = await Promise.all([
-        dashboardService.getStats(),
+        dashboardService.getStats(warehouseId),
         dashboardService.getRecentOrders(5),
-        dashboardService.getSalesLast7Days(),
-        dashboardService.getTopProducts(5),
+        dashboardService.getSalesLast7Days(warehouseId),
+        dashboardService.getTopProducts(5, warehouseId),
       ])
 
       setStats(statsData)
@@ -83,12 +87,15 @@ export function useDashboardViewModel(): UsedashboardViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [selectedWarehouse])
 
   useEffect(() => {
     fetchUserName()
+  }, [fetchUserName])
+
+  useEffect(() => {
     fetchDashboardData()
-  }, [fetchUserName, fetchDashboardData])
+  }, [fetchDashboardData])
 
   return {
     userName,

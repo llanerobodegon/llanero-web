@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag, LayoutDashboard } from "lucide-react"
+import { Package, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag, LayoutDashboard } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -17,60 +17,6 @@ import {
 import { createClient } from "@/lib/supabase/client"
 
 const sidebarData = {
-  warehouses: [
-    {
-      name: "Bodegon del Este",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "Trinitarias",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "Express",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "Bararida",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "West",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "Yaritagua",
-      logo: Store,
-      plan: "Bodegón",
-    },
-    {
-      name: "Cabudare",
-      logo: Store,
-      plan: "Bodegón",
-    },
-  ],
-  restaurants: [
-    {
-      name: "Boulevard Rose",
-      logo: UtensilsCrossed,
-      plan: "Restaurante",
-    },
-    {
-      name: "Orinoco Grill",
-      logo: UtensilsCrossed,
-      plan: "Restaurante",
-    },
-    {
-      name: "La Nave",
-      logo: UtensilsCrossed,
-      plan: "Restaurante",
-    },
-  ],
   navItems: [
     {
       title: "Dashboard",
@@ -86,7 +32,6 @@ const sidebarData = {
       title: "Productos",
       url: "/admin/products",
       icon: Package,
-      isActive: true,
       items: [
         {
           title: "Inventario",
@@ -166,7 +111,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher warehouses={sidebarData.warehouses} restaurants={sidebarData.restaurants} />
+        <TeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={sidebarData.navItems} />

@@ -55,7 +55,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ├── lib/                    # Utilities and configurations
 │   └── supabase/           # Supabase client setup
 ├── src/
-│   ├── contexts/           # React contexts (breadcrumb)
+│   ├── contexts/           # React contexts (breadcrumb, warehouse)
 │   ├── models/             # TypeScript interfaces
 │   ├── services/           # API/business logic
 │   ├── viewmodels/         # State management hooks
@@ -187,6 +187,28 @@ All modules share a consistent UI pattern:
 - **Data Table:** Server-side pagination with configurable page size
 - **Skeleton Loading:** Consistent layout during data fetching
 
+### Warehouse Selector (Global Filter)
+
+The sidebar includes a warehouse selector that filters data across all modules:
+
+- **Location:** Top of sidebar (Team Switcher)
+- **Options:**
+  - "Todos los bodegones" (default) - Shows all data unfiltered
+  - Individual warehouse selection - Filters all data by selected warehouse
+- **Filtered Modules:**
+  - Dashboard (sales, customers, products, charts)
+  - Orders (by warehouse_id)
+  - Team (by warehouse_users assignment)
+  - Delivery (by warehouse_users assignment)
+  - Customers (by orders placed in warehouse)
+  - Inventory (by warehouse_products)
+- **Features:**
+  - Warehouses loaded from Supabase
+  - Alphabetically sorted
+  - Only shows active warehouses
+  - Persists selection during session
+  - Automatic page reset when changing warehouse
+
 ### Dashboard
 
 Main dashboard with business metrics overview:
@@ -210,6 +232,7 @@ Main dashboard with business metrics overview:
   - Positive/negative trend indicators with color coding
   - Skeleton loading states for all components
   - Responsive grid layout
+  - Filtered by selected warehouse
 
 ### Warehouses (Bodegones)
 
@@ -366,6 +389,37 @@ Full order management implementation:
   - Timestamps: created, confirmed, delivered, cancelled
   - Search by order number, customer name, or email
   - Status filter dropdown
+  - Filtered by selected warehouse
+
+### Store Settings (Configuración de Tienda)
+
+Global store configuration:
+
+- **Store Status:** Toggle to open/close the store (prevents new orders when closed)
+- **Invoice Message:** Optional message displayed on customer invoices
+  - Enable/disable toggle
+  - Custom message text area
+- **Features:**
+  - Settings stored as key-value pairs in store_settings table
+  - Global configuration (applies to all warehouses)
+  - Real-time updates with toast notifications
+
+### Account Settings (Configuración de Cuenta)
+
+User profile management with tabbed interface:
+
+- **Información Personal Tab:**
+  - First name and last name
+  - Email (read-only)
+  - Phone with Venezuelan code selector
+- **Seguridad Tab:**
+  - Password change functionality
+  - Password confirmation validation
+- **Features:**
+  - Accessible from user dropdown menu
+  - Form validation
+  - Save changes only when modified
+  - Toast notifications for success/error
 
 ## Supabase Storage
 

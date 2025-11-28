@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { customersService, Customer } from "@/src/services/customers.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 export type { Customer }
 
@@ -21,6 +22,7 @@ interface UseCustomersViewModelReturn {
 }
 
 export function useCustomersViewModel(): UseCustomersViewModelReturn {
+  const { selectedWarehouse } = useWarehouseContext()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +36,10 @@ export function useCustomersViewModel(): UseCustomersViewModelReturn {
       setIsLoading(true)
       setError(null)
 
-      const response = await customersService.getPaginated({ page, pageSize })
+      const response = await customersService.getPaginated(
+        { page, pageSize },
+        { warehouseId: selectedWarehouse?.id }
+      )
 
       setCustomers(response.data)
       setTotalCount(response.totalCount)
@@ -45,7 +50,12 @@ export function useCustomersViewModel(): UseCustomersViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, pageSize])
+  }, [page, pageSize, selectedWarehouse])
+
+  // Reset page when warehouse changes
+  useEffect(() => {
+    setPage(1)
+  }, [selectedWarehouse])
 
   useEffect(() => {
     fetchCustomers()

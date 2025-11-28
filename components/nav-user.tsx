@@ -1,10 +1,13 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
   ChevronsUpDown,
   LogOut,
+  Settings,
   User,
+  Store,
 } from "lucide-react"
 
 import {
@@ -76,6 +79,19 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/admin/settings">
+                <Store />
+                Configuración de tienda
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/admin/account">
+                <Settings />
+                Configuración de cuenta
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
               <LogOut />

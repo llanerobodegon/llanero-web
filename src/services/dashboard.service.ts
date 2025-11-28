@@ -41,26 +41,38 @@ export interface TopProduct {
 }
 
 class DashboardService {
-  async getStats(): Promise<DashboardStats> {
+  async getStats(warehouseId?: string): Promise<DashboardStats> {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
 
     // Get current month orders
-    const { data: currentMonthOrders } = await supabase
+    let currentMonthQuery = supabase
       .from("orders")
       .select("id, total_usd, status")
       .gte("created_at", startOfMonth.toISOString())
       .not("status", "eq", "cancelled")
 
+    if (warehouseId) {
+      currentMonthQuery = currentMonthQuery.eq("warehouse_id", warehouseId)
+    }
+
+    const { data: currentMonthOrders } = await currentMonthQuery
+
     // Get last month orders
-    const { data: lastMonthOrders } = await supabase
+    let lastMonthQuery = supabase
       .from("orders")
       .select("id, total_usd, status")
       .gte("created_at", startOfLastMonth.toISOString())
       .lte("created_at", endOfLastMonth.toISOString())
       .not("status", "eq", "cancelled")
+
+    if (warehouseId) {
+      lastMonthQuery = lastMonthQuery.eq("warehouse_id", warehouseId)
+    }
+
+    const { data: lastMonthOrders } = await lastMonthQuery
 
     // Calculate total sales
     const currentSales = (currentMonthOrders || []).reduce(
@@ -190,17 +202,23 @@ class DashboardService {
     })
   }
 
-  async getSalesLast7Days(): Promise<DailySales[]> {
+  async getSalesLast7Days(warehouseId?: string): Promise<DailySales[]> {
     const now = new Date()
     const sevenDaysAgo = new Date(now)
     sevenDaysAgo.setDate(now.getDate() - 6)
     sevenDaysAgo.setHours(0, 0, 0, 0)
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("orders")
       .select("total_usd, created_at")
       .gte("created_at", sevenDaysAgo.toISOString())
       .not("status", "eq", "cancelled")
+
+    if (warehouseId) {
+      query = query.eq("warehouse_id", warehouseId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("Error fetching sales last 7 days:", error)
@@ -238,12 +256,12 @@ class DashboardService {
     return salesByDay
   }
 
-  async getTopProducts(limit: number = 5): Promise<TopProduct[]> {
+  async getTopProducts(limit: number = 5, warehouseId?: string): Promise<TopProduct[]> {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
     // Get all order items from this month with product info
-    const { data, error } = await supabase
+    let query = supabase
       .from("order_items")
       .select(`
         product_id,
@@ -253,11 +271,18 @@ class DashboardService {
         total_usd,
         orders!inner (
           created_at,
-          status
+          status,
+          warehouse_id
         )
       `)
       .gte("orders.created_at", startOfMonth.toISOString())
       .not("orders.status", "eq", "cancelled")
+
+    if (warehouseId) {
+      query = query.eq("orders.warehouse_id", warehouseId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("Error fetching top products:", error)

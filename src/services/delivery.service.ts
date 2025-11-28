@@ -88,7 +88,8 @@ class DeliveryService {
   }
 
   async getPaginated(
-    params: PaginationParams
+    params: PaginationParams,
+    filters?: { warehouseId?: string }
   ): Promise<PaginatedResponse<DeliveryMember>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -106,11 +107,38 @@ class DeliveryService {
       }
     }
 
+    // If filtering by warehouse, get user IDs first
+    let userIdsInWarehouse: string[] | null = null
+    if (filters?.warehouseId) {
+      const { data: warehouseUsers } = await supabase
+        .from("warehouse_users")
+        .select("user_id")
+        .eq("warehouse_id", filters.warehouseId)
+
+      userIdsInWarehouse = (warehouseUsers || []).map((wu) => wu.user_id)
+
+      if (userIdsInWarehouse.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        }
+      }
+    }
+
     // Build count query
-    const { count: totalCount, error: countError } = await supabase
+    let countQuery = supabase
       .from("users")
       .select("*", { count: "exact", head: true })
       .eq("role_id", deliveryRoleId)
+
+    if (userIdsInWarehouse) {
+      countQuery = countQuery.in("id", userIdsInWarehouse)
+    }
+
+    const { count: totalCount, error: countError } = await countQuery
 
     if (countError) {
       console.error("Error counting delivery members:", countError)
@@ -118,7 +146,7 @@ class DeliveryService {
     }
 
     // Build data query
-    const { data, error } = await supabase
+    let dataQuery = supabase
       .from("users")
       .select(`
         *,
@@ -130,6 +158,12 @@ class DeliveryService {
       .eq("role_id", deliveryRoleId)
       .order("created_at", { ascending: false })
       .range(from, to)
+
+    if (userIdsInWarehouse) {
+      dataQuery = dataQuery.in("id", userIdsInWarehouse)
+    }
+
+    const { data, error } = await dataQuery
 
     if (error) {
       console.error("Error fetching delivery members:", error)

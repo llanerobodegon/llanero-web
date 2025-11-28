@@ -213,7 +213,7 @@ function mapRowToOrder(row: any): Order {
 class OrdersService {
   async getPaginated(
     params: PaginationParams,
-    filters?: { status?: OrderStatus; paymentStatus?: PaymentStatus }
+    filters?: { status?: OrderStatus; paymentStatus?: PaymentStatus; warehouseId?: string }
   ): Promise<PaginatedResponse<OrderListItem>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -229,6 +229,9 @@ class OrdersService {
     }
     if (filters?.paymentStatus) {
       countQuery = countQuery.eq("payment_status", filters.paymentStatus)
+    }
+    if (filters?.warehouseId) {
+      countQuery = countQuery.eq("warehouse_id", filters.warehouseId)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -264,6 +267,9 @@ class OrdersService {
     }
     if (filters?.paymentStatus) {
       dataQuery = dataQuery.eq("payment_status", filters.paymentStatus)
+    }
+    if (filters?.warehouseId) {
+      dataQuery = dataQuery.eq("warehouse_id", filters.warehouseId)
     }
 
     const { data, error } = await dataQuery

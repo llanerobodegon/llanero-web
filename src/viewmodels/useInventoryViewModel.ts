@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { productService, Product } from "@/src/services/product.service"
 import { categoryService } from "@/src/services/category.service"
 import { subcategoryService } from "@/src/services/subcategory.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 interface PaginationState {
   page: number
@@ -24,6 +25,7 @@ interface Subcategory {
 }
 
 export function useInventoryViewModel() {
+  const { selectedWarehouse } = useWarehouseContext()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
@@ -61,7 +63,8 @@ export function useInventoryViewModel() {
       page: number = 1,
       pageSize: number = 10,
       categoryIds?: string[],
-      subcategoryIds?: string[]
+      subcategoryIds?: string[],
+      warehouseId?: string
     ) => {
       setIsLoading(true)
       setError(null)
@@ -71,6 +74,7 @@ export function useInventoryViewModel() {
           {
             categoryIds: categoryIds?.length ? categoryIds : undefined,
             subcategoryIds: subcategoryIds?.length ? subcategoryIds : undefined,
+            warehouseId,
           }
         )
         setProducts(result.data)
@@ -95,22 +99,27 @@ export function useInventoryViewModel() {
     fetchSubcategories()
   }, [fetchCategories, fetchSubcategories])
 
+  // Reset pagination when warehouse changes
   useEffect(() => {
-    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds)
-  }, [selectedCategoryIds, selectedSubcategoryIds])
+    setPagination((prev) => ({ ...prev, page: 1 }))
+  }, [selectedWarehouse])
+
+  useEffect(() => {
+    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse?.id)
+  }, [selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse])
 
   const setPage = useCallback(
     (page: number) => {
-      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds)
+      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse?.id)
     },
-    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds]
+    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse]
   )
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds)
+      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse?.id)
     },
-    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds]
+    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse]
   )
 
   const toggleCategoryFilter = useCallback(
@@ -156,8 +165,8 @@ export function useInventoryViewModel() {
   )
 
   const refresh = useCallback(() => {
-    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds)
-  }, [fetchProducts, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds])
+    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse?.id)
+  }, [fetchProducts, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, selectedWarehouse])
 
   // Filter subcategories based on selected categories
   const filteredSubcategories = selectedCategoryIds.length > 0

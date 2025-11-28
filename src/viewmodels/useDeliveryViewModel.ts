@@ -7,6 +7,7 @@ import {
   CreateDeliveryMemberData,
   Warehouse,
 } from "@/src/services/delivery.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 export type { DeliveryMember, CreateDeliveryMemberData, Warehouse }
 
@@ -30,6 +31,7 @@ interface UseDeliveryViewModelReturn {
 }
 
 export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
+  const { selectedWarehouse } = useWarehouseContext()
   const [deliveryMembers, setDeliveryMembers] = useState<DeliveryMember[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -44,7 +46,10 @@ export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
       setIsLoading(true)
       setError(null)
 
-      const response = await deliveryService.getPaginated({ page, pageSize })
+      const response = await deliveryService.getPaginated(
+        { page, pageSize },
+        { warehouseId: selectedWarehouse?.id }
+      )
 
       setDeliveryMembers(response.data)
       setTotalCount(response.totalCount)
@@ -55,7 +60,7 @@ export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, pageSize])
+  }, [page, pageSize, selectedWarehouse])
 
   const fetchWarehouses = useCallback(async () => {
     try {
@@ -65,6 +70,11 @@ export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
       console.error("Error fetching warehouses:", err)
     }
   }, [])
+
+  // Reset page when warehouse changes
+  useEffect(() => {
+    setPage(1)
+  }, [selectedWarehouse])
 
   useEffect(() => {
     fetchDeliveryMembers()

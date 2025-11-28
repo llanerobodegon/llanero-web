@@ -1,14 +1,12 @@
 "use client"
 
-import * as React from "react"
-import { ChevronsUpDown } from "lucide-react"
+import { ChevronsUpDown, Store, LayoutGrid } from "lucide-react"
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -17,26 +15,27 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
+import { Skeleton } from "@/components/ui/skeleton"
 
-type Team = {
-  name: string
-  logo: React.ElementType
-  plan: string
-}
-
-export function TeamSwitcher({
-  warehouses,
-  restaurants,
-}: {
-  warehouses: Team[]
-  restaurants: Team[]
-}) {
+export function TeamSwitcher() {
   const { isMobile } = useSidebar()
-  const allTeams = [...warehouses, ...restaurants]
-  const [activeTeam, setActiveTeam] = React.useState(allTeams[0])
+  const { warehouses, selectedWarehouse, setSelectedWarehouse, isLoading } = useWarehouseContext()
 
-  if (!activeTeam) {
-    return null
+  if (isLoading) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <Skeleton className="size-8 rounded-lg" />
+            <div className="flex-1 space-y-1">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
   }
 
   return (
@@ -49,11 +48,19 @@ export function TeamSwitcher({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
             >
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <activeTeam.logo className="size-4" />
+                {selectedWarehouse ? (
+                  <Store className="size-4" />
+                ) : (
+                  <LayoutGrid className="size-4" />
+                )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{activeTeam.name}</span>
-                <span className="truncate text-xs">{activeTeam.plan}</span>
+                <span className="truncate font-medium">
+                  {selectedWarehouse?.name || "Todos los bodegones"}
+                </span>
+                <span className="truncate text-xs">
+                  {selectedWarehouse ? "Bodegón" : "Vista global"}
+                </span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>
@@ -64,35 +71,28 @@ export function TeamSwitcher({
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
+            <DropdownMenuItem
+              onClick={() => setSelectedWarehouse(null)}
+              className="gap-2 p-2 cursor-pointer"
+            >
+              <div className="flex size-6 items-center justify-center rounded-md border">
+                <LayoutGrid className="size-3.5 shrink-0" />
+              </div>
+              Todos los bodegones
+            </DropdownMenuItem>
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Bodegones
             </DropdownMenuLabel>
-            {warehouses.map((team) => (
+            {warehouses.map((warehouse) => (
               <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
+                key={warehouse.id}
+                onClick={() => setSelectedWarehouse(warehouse)}
                 className="gap-2 p-2 cursor-pointer"
               >
                 <div className="flex size-6 items-center justify-center rounded-md border">
-                  <team.logo className="size-3.5 shrink-0" />
+                  <Store className="size-3.5 shrink-0" />
                 </div>
-                {team.name}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-muted-foreground text-xs">
-              Restaurantes
-            </DropdownMenuLabel>
-            {restaurants.map((team) => (
-              <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
-                className="gap-2 p-2 cursor-pointer"
-              >
-                <div className="flex size-6 items-center justify-center rounded-md border">
-                  <team.logo className="size-3.5 shrink-0" />
-                </div>
-                {team.name}
+                {warehouse.name}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
