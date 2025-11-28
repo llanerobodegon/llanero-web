@@ -80,7 +80,7 @@ const sidebarData = {
       items: [
         {
           title: "Inventario",
-          url: "/admin/products/inventory",
+          url: "/admin/inventory",
         },
         {
           title: "Categorías",

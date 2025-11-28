@@ -12,6 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { useBreadcrumb } from "@/src/contexts/breadcrumb-context"
 
 // Route segment to display name mapping (UI text in Spanish)
 const routeDisplayNames: Record<string, string> = {
@@ -21,11 +22,29 @@ const routeDisplayNames: Record<string, string> = {
   inventory: "Inventario",
   categories: "Categorías",
   subcategories: "Subcategorías",
+  new: "Nuevo",
 }
+
+// Segments to skip in breadcrumb display
+const skipSegments = ["edit"]
 
 export function AdminHeader() {
   const pathname = usePathname()
+  const { overrides } = useBreadcrumb()
   const segments = pathname.split("/").filter(Boolean)
+
+  // Filter out segments we want to skip
+  const filteredSegments = segments.filter((segment) => !skipSegments.includes(segment))
+
+  const getDisplayName = (segment: string): string => {
+    // Check for overrides first
+    const override = overrides.find((o) => o.segment === segment)
+    if (override) {
+      return override.label
+    }
+    // Then check static mappings
+    return routeDisplayNames[segment] || segment
+  }
 
   return (
     <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -37,13 +56,15 @@ export function AdminHeader() {
         />
         <Breadcrumb>
           <BreadcrumbList>
-            {segments.map((segment, index) => {
-              const isLast = index === segments.length - 1
-              const href = "/" + segments.slice(0, index + 1).join("/")
-              const displayName = routeDisplayNames[segment] || segment
+            {filteredSegments.map((segment, index) => {
+              const isLast = index === filteredSegments.length - 1
+              // Build href from original segments up to current position
+              const originalIndex = segments.indexOf(segment)
+              const href = "/" + segments.slice(0, originalIndex + 1).join("/")
+              const displayName = getDisplayName(segment)
 
               return (
-                <React.Fragment key={segment}>
+                <React.Fragment key={`${segment}-${index}`}>
                   <BreadcrumbItem>
                     {isLast ? (
                       <BreadcrumbPage>{displayName}</BreadcrumbPage>

@@ -38,12 +38,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 │   ├── admin/              # Protected admin routes
 │   │   ├── warehouses/     # Warehouses module
 │   │   ├── categories/     # Categories module
-│   │   └── subcategories/  # Subcategories module
+│   │   ├── subcategories/  # Subcategories module
+│   │   └── inventory/      # Products/Inventory module
+│   │       ├── new/        # Add product page
+│   │       └── [id]/edit/  # Edit product page
 │   └── auth/               # Authentication
 ├── components/             # Shared UI components
 ├── lib/                    # Utilities and configurations
 │   └── supabase/           # Supabase client setup
 ├── src/
+│   ├── contexts/           # React contexts (breadcrumb)
 │   ├── models/             # TypeScript interfaces
 │   ├── services/           # API/business logic
 │   ├── viewmodels/         # State management hooks
@@ -164,29 +168,60 @@ Full CRUD implementation for product subcategories:
   - Multi-select category filter with checkboxes
   - Image placeholder in table
 
+### Products (Productos/Inventario)
+
+Full CRUD implementation for product management:
+
+- **List:** DataTable with search, multi-select filters, and server-side pagination
+- **Create:** Full-page form with two-column layout
+- **Edit:** Full-page form with product data pre-loaded
+- **Delete:** Confirmation dialog with image cleanup
+- **Features:**
+  - Multi-image upload (max 4) with drag & drop
+  - Category and subcategory assignment
+  - Price with optional discount/promo toggles
+  - SKU and barcode support (optional)
+  - Warehouse availability selection with individual stock per warehouse
+  - Global stock input to apply to all selected warehouses
+  - Multi-select category and subcategory filters with checkboxes
+  - Dynamic breadcrumb showing product name
+  - Automatic image deletion from storage on product delete
+  - Edit page with delete button
+
 ## Supabase Storage
 
-Create the following storage bucket for warehouse logos:
+Create the following storage buckets:
+
+### warehouse-logos
 
 ```sql
--- Create warehouse-logos bucket
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('warehouse-logos', 'warehouse-logos', true);
 
--- Allow public read access
-CREATE POLICY "Public read access"
-ON storage.objects FOR SELECT
+CREATE POLICY "Public read access" ON storage.objects FOR SELECT
 USING (bucket_id = 'warehouse-logos');
 
--- Allow authenticated users to upload
-CREATE POLICY "Authenticated upload access"
-ON storage.objects FOR INSERT
+CREATE POLICY "Authenticated upload access" ON storage.objects FOR INSERT
 WITH CHECK (bucket_id = 'warehouse-logos' AND auth.role() = 'authenticated');
 
--- Allow users to delete their uploads
-CREATE POLICY "Authenticated delete access"
-ON storage.objects FOR DELETE
+CREATE POLICY "Authenticated delete access" ON storage.objects FOR DELETE
 USING (bucket_id = 'warehouse-logos' AND auth.role() = 'authenticated');
+```
+
+### product-images
+
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product-images', 'product-images', true);
+
+CREATE POLICY "Public read access" ON storage.objects FOR SELECT
+USING (bucket_id = 'product-images');
+
+CREATE POLICY "Authenticated upload access" ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated delete access" ON storage.objects FOR DELETE
+USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
 ```
 
 ## Scripts
