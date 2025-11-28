@@ -21,9 +21,10 @@ import {
 interface ColumnsProps {
   onEdit: (item: TeamMember) => void
   onDelete: (item: TeamMember) => void
+  currentUserId?: string
 }
 
-export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<TeamMember>[] {
+export function getColumns({ onEdit, onDelete, currentUserId }: ColumnsProps): ColumnDef<TeamMember>[] {
   return [
     {
       accessorKey: "name",
@@ -87,6 +88,11 @@ export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<TeamMe
       header: () => <div className="text-right"></div>,
       cell: ({ row }) => {
         const item = row.original
+        const isCurrentUser = currentUserId === item.id
+
+        if (isCurrentUser) {
+          return null
+        }
 
         return (
           <div className="text-right">

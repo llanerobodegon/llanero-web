@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { toast } from "sonner"
 import { Plus, Users, Search, X, Loader2, Check } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -77,6 +78,16 @@ export function TeamContent() {
     deleteTeamMember,
   } = useTeamViewModel()
 
+  // Current user state
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id)
+    })
+  }, [])
+
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -98,6 +109,7 @@ export function TeamContent() {
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("")
@@ -217,15 +229,17 @@ export function TeamContent() {
   const handleConfirmDelete = async () => {
     if (!memberToDelete) return
 
+    setIsDeleting(true)
     try {
       await deleteTeamMember(memberToDelete.id)
       toast.success("Miembro eliminado correctamente")
+      setDeleteDialogOpen(false)
+      setMemberToDelete(null)
     } catch (err) {
       console.error("Error deleting team member:", err)
       toast.error("Error al eliminar el miembro")
     } finally {
-      setDeleteDialogOpen(false)
-      setMemberToDelete(null)
+      setIsDeleting(false)
     }
   }
 
@@ -234,8 +248,9 @@ export function TeamContent() {
       getColumns({
         onEdit: openEditDrawer,
         onDelete: handleDeleteClick,
+        currentUserId,
       }),
-    []
+    [currentUserId]
   )
 
   if (isLoading) {
@@ -616,7 +631,7 @@ export function TeamContent() {
       </Sheet>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => !isDeleting && setDeleteDialogOpen(open)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar miembro?</AlertDialogTitle>
@@ -629,12 +644,20 @@ export function TeamContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={isDeleting}
             >
-              Eliminar
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

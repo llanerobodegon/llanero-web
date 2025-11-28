@@ -26,6 +26,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           color: "#fff",
           borderRadius: "9999px",
           border: "none",
+          width: "fit-content",
         },
       }}
       {...props}

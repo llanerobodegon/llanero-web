@@ -233,14 +233,16 @@ Full CRUD implementation for team member management:
 
 - **List:** DataTable with search and server-side pagination
 - **Create/Edit:** Side drawer with role and warehouse assignment
-- **Delete:** Confirmation dialog
+- **Delete:** Confirmation dialog with loading state
 - **Features:**
   - Role assignment (Administrador, Gerente, Repartidor)
   - Multi-select warehouse assignment with checkboxes
   - Avatar with initials in table
   - Phone codes for Venezuela (0412, 0414, 0416, 0422, 0424, 0426)
   - Active/Inactive status toggle
-  - Server-side user creation via API route (secure service role key)
+  - Email invitation for new users (set password flow)
+  - Server-side user creation/deletion via API route (secure service role key)
+  - Current user cannot edit/delete themselves
   - Search by name or email
 
 ## Supabase Storage

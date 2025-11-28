@@ -279,25 +279,16 @@ class TeamService {
   }
 
   async delete(id: string): Promise<void> {
-    // Delete warehouse assignments first
-    await supabase
-      .from("warehouse_users")
-      .delete()
-      .eq("user_id", id)
+    // Call the API route to delete the user (uses service role key server-side)
+    const response = await fetch(`/api/team?id=${id}`, {
+      method: "DELETE",
+    })
 
-    // Delete the user from users table
-    const { error } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
+    const result = await response.json()
 
-    if (error) {
-      console.error("Error deleting team member:", error)
-      throw new Error("Failed to delete team member")
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to delete user")
     }
-
-    // Note: The auth user will remain but the profile is deleted
-    // In production, you might want to delete the auth user too
   }
 }
 

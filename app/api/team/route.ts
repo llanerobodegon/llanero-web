@@ -21,6 +21,61 @@ function getSupabaseAdmin() {
   })
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabaseAdmin = getSupabaseAdmin()
+
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get("id")
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "ID de usuario requerido" },
+        { status: 400 }
+      )
+    }
+
+    // Delete warehouse assignments first
+    await supabaseAdmin
+      .from("warehouse_users")
+      .delete()
+      .eq("user_id", userId)
+
+    // Delete user from users table
+    const { error: deleteUserError } = await supabaseAdmin
+      .from("users")
+      .delete()
+      .eq("id", userId)
+
+    if (deleteUserError) {
+      console.error("Error deleting user profile:", deleteUserError)
+      return NextResponse.json(
+        { error: "Error al eliminar el perfil del usuario" },
+        { status: 500 }
+      )
+    }
+
+    // Delete user from auth
+    const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+    if (deleteAuthError) {
+      console.error("Error deleting auth user:", deleteAuthError)
+      return NextResponse.json(
+        { error: "Error al eliminar el usuario de autenticación" },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    console.error("Unexpected error:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Error inesperado" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin()
@@ -54,21 +109,21 @@ export async function POST(request: NextRequest) {
 
     const roleName = roleData?.name || "customer"
 
-    // Create the auth user without triggering database insert
-    // We'll insert the user record manually after
-    console.log("Creating auth user with email:", email)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    // Invite user by email - they will receive an email to set their password
+    console.log("Inviting user with email:", email)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      email_confirm: true,
-      user_metadata: {
-        first_name: firstName,
-        last_name: lastName,
-        role: roleName,
-      },
-    })
+      {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          role: roleName,
+        },
+      }
+    )
 
     if (authError) {
-      console.error("Error creating auth user:", authError)
+      console.error("Error inviting user:", authError)
       console.error("Auth error details:", JSON.stringify(authError, null, 2))
       if (authError.message?.includes("already been registered")) {
         return NextResponse.json(
@@ -77,12 +132,12 @@ export async function POST(request: NextRequest) {
         )
       }
       return NextResponse.json(
-        { error: `Error al crear el usuario: ${authError.message}` },
+        { error: `Error al invitar el usuario: ${authError.message}` },
         { status: 500 }
       )
     }
 
-    console.log("Auth user created successfully:", authData.user.id)
+    console.log("User invited successfully:", authData.user.id)
 
     const userId = authData.user.id
 
