@@ -175,7 +175,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 **Roles:** `customer` | `admin` | `manager` | `delivery`
 
-**Order Status:** `pending` → `confirmed` → `preparing` → `on_delivery` → `delivered` → `completed` | `cancelled`
+**Order Status:** `pending` → `confirmed` → `on_delivery` → `completed` | `cancelled`
 
 **Payment Status:** `pending` → `verified` | `rejected`
 
@@ -328,7 +328,7 @@ Full order management implementation:
   - Auto-generated order number (ORD-00001, ORD-00002, etc.)
   - 4-digit delivery verification code (customer provides to delivery person)
   - Dual currency support (USD and Bolívares with exchange rate)
-  - Order status flow: pending → confirmed → preparing → on_delivery → delivered → completed | cancelled
+  - Order status flow: pending → confirmed → on_delivery → completed | cancelled
   - Payment status: pending → verified | rejected
   - Delivery types: pickup (retiro) or delivery
   - Payment methods: Pago Móvil, Transferencia, Zelle, Banesco Panamá

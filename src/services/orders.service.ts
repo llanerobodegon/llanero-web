@@ -5,7 +5,7 @@ import { PaginationParams, PaginatedResponse } from "@/src/types/pagination"
 
 const supabase = createClient()
 
-export type OrderStatus = "pending" | "confirmed" | "preparing" | "on_delivery" | "delivered" | "completed" | "cancelled"
+export type OrderStatus = "pending" | "confirmed" | "on_delivery" | "completed" | "cancelled"
 export type PaymentStatus = "pending" | "verified" | "rejected"
 export type DeliveryType = "pickup" | "delivery"
 export type PaymentMethodType = "pago_movil" | "transferencia" | "zelle" | "banesco_panama"
@@ -348,7 +348,7 @@ class OrdersService {
       // Set timestamps based on status
       if (data.status === "confirmed") {
         updateData.confirmed_at = new Date().toISOString()
-      } else if (data.status === "delivered") {
+      } else if (data.status === "completed") {
         updateData.delivered_at = new Date().toISOString()
       } else if (data.status === "cancelled") {
         updateData.cancelled_at = new Date().toISOString()
@@ -436,9 +436,7 @@ export function getStatusLabel(status: OrderStatus): string {
   const labels: Record<OrderStatus, string> = {
     pending: "Pendiente",
     confirmed: "Confirmado",
-    preparing: "Preparando",
     on_delivery: "En Camino",
-    delivered: "Entregado",
     completed: "Completado",
     cancelled: "Cancelado",
   }
@@ -449,10 +447,8 @@ export function getStatusColor(status: OrderStatus): string {
   const colors: Record<OrderStatus, string> = {
     pending: "bg-yellow-500",
     confirmed: "bg-blue-500",
-    preparing: "bg-purple-500",
     on_delivery: "bg-indigo-500",
-    delivered: "bg-green-500",
-    completed: "bg-gray-500",
+    completed: "bg-green-500",
     cancelled: "bg-red-500",
   }
   return colors[status] || "bg-gray-400"

@@ -27,9 +27,7 @@ const ORDER_STATUS_OPTIONS: (OrderStatus | "all")[] = [
   "all",
   "pending",
   "confirmed",
-  "preparing",
   "on_delivery",
-  "delivered",
   "completed",
   "cancelled",
 ]

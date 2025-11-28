@@ -66,9 +66,7 @@ interface OrderDetailDrawerProps {
 const ORDER_STATUSES: OrderStatus[] = [
   "pending",
   "confirmed",
-  "preparing",
   "on_delivery",
-  "delivered",
   "completed",
   "cancelled",
 ]
