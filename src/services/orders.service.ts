@@ -154,8 +154,8 @@ function mapRowToOrder(row: any): Order {
     address: address ? {
       id: address.id,
       label: address.label,
-      address1: address.address_1,
-      address2: address.address_2,
+      address1: address.address_line_1,
+      address2: address.address_line_2,
       city: address.city,
     } : null,
     deliveryPerson: deliveryPerson ? {
@@ -285,18 +285,11 @@ class OrdersService {
   }
 
   async getById(id: string): Promise<Order | null> {
-    const { data, error } = await supabase
+    // First get the order with basic relations
+    const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .select(`
         *,
-        users!orders_user_id_fkey (
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          phone_code
-        ),
         warehouses (
           id,
           name
@@ -304,14 +297,9 @@ class OrdersService {
         addresses (
           id,
           label,
-          address_1,
-          address_2,
+          address_line_1,
+          address_line_2,
           city
-        ),
-        delivery_person:users!orders_delivery_person_id_fkey (
-          id,
-          first_name,
-          last_name
         ),
         order_items (
           id,
@@ -328,13 +316,38 @@ class OrdersService {
       .eq("id", id)
       .single()
 
-    if (error) {
-      if (error.code === "PGRST116") return null
-      console.error("Error fetching order:", error)
+    if (orderError) {
+      if (orderError.code === "PGRST116") return null
+      console.error("Error fetching order:", orderError)
       throw new Error("Failed to fetch order")
     }
 
-    return mapRowToOrder(data)
+    // Get customer data
+    const { data: customerData } = await supabase
+      .from("users")
+      .select("id, first_name, last_name, email, phone, phone_code")
+      .eq("id", orderData.user_id)
+      .single()
+
+    // Get delivery person data if assigned
+    let deliveryPersonData = null
+    if (orderData.delivery_person_id) {
+      const { data } = await supabase
+        .from("users")
+        .select("id, first_name, last_name")
+        .eq("id", orderData.delivery_person_id)
+        .single()
+      deliveryPersonData = data
+    }
+
+    // Combine all data
+    const combinedData = {
+      ...orderData,
+      users: customerData,
+      delivery_person: deliveryPersonData,
+    }
+
+    return mapRowToOrder(combinedData)
   }
 
   async update(id: string, data: UpdateOrderData): Promise<Order> {

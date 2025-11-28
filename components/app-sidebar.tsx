@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag } from "lucide-react"
+import { Package, Store, UtensilsCrossed, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag, LayoutDashboard } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -72,6 +72,11 @@ const sidebarData = {
     },
   ],
   navItems: [
+    {
+      title: "Dashboard",
+      url: "/admin",
+      icon: LayoutDashboard,
+    },
     {
       title: "Pedidos",
       url: "/admin/orders",

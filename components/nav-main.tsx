@@ -41,7 +41,10 @@ export function NavMain({
       <SidebarGroupLabel>Menú</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => {
-          const isItemActive = pathname === item.url || pathname.startsWith(item.url + "/")
+          // For /admin (Dashboard), only match exact path to avoid matching /admin/*
+          const isItemActive = item.url === "/admin"
+            ? pathname === "/admin"
+            : pathname === item.url || pathname.startsWith(item.url + "/")
           const hasActiveSubItem = item.items?.some(
             (subItem) => pathname === subItem.url || pathname.startsWith(subItem.url + "/")
           )

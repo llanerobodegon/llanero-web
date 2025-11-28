@@ -187,6 +187,30 @@ All modules share a consistent UI pattern:
 - **Data Table:** Server-side pagination with configurable page size
 - **Skeleton Loading:** Consistent layout during data fetching
 
+### Dashboard
+
+Main dashboard with business metrics overview:
+
+- **Greeting:** Personalized welcome message with user's first name
+- **Stats Cards:** Four metric cards with trend indicators
+  - Ventas Totales (total sales in USD)
+  - Nuevos Clientes (new customers this month)
+  - Productos Facturados (products sold)
+  - Crecimiento (growth percentage vs last month)
+- **Sales Chart:** Bar chart with tabs to toggle between:
+  - Ventas (sales amount by day)
+  - Pedidos (order count by day)
+  - Shows last 7 days with weekly totals
+- **Top Products:** Table showing top 5 best-selling products this month
+  - Product image and name
+  - Quantity sold
+  - Total sales amount
+- **Features:**
+  - All metrics compare current month vs previous month
+  - Positive/negative trend indicators with color coding
+  - Skeleton loading states for all components
+  - Responsive grid layout
+
 ### Warehouses (Bodegones)
 
 Full CRUD implementation for managing warehouses:
