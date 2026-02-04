@@ -43,7 +43,12 @@ export function Hero() {
 
         <div className="mt-10 flex flex-wrap justify-center gap-4">
           {/* iOS Card */}
-          <div className="group relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl">
+          <a
+            href="https://apps.apple.com/br/app/llanero-bodeg%C3%B3n/id6752811237"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl"
+          >
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/5 blur-2xl" />
             <div className="relative flex gap-5">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2 shadow-lg">
@@ -73,10 +78,15 @@ export function Hero() {
                 </div>
               </div>
             </div>
-          </div>
+          </a>
 
           {/* Android Card */}
-          <div className="group relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.llanerobodegon.llanero"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 shadow-xl transition-all hover:scale-[1.02] hover:shadow-2xl"
+          >
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-emerald-500/10 blur-2xl" />
             <div className="relative flex gap-5">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white p-2 shadow-lg">
@@ -106,7 +116,7 @@ export function Hero() {
                 </div>
               </div>
             </div>
-          </div>
+          </a>
         </div>
       </div>
 

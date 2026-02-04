@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Llanero",
-    template: "%s | Llanero",
+    default: "Llanero Bodegón - La Experiencia Llanero en tu bolsillo",
+    template: "%s | Llanero Bodegón",
   },
-  description: "Llanero Admin",
+  description: "Descubre bodegones y restaurantes cerca de ti, disfruta de ofertas exclusivas y sigue tus pedidos en tiempo real.",
 };
 
 export default function RootLayout({
