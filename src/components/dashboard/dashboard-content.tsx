@@ -256,8 +256,8 @@ function SalesChart({ dailySales, isLoading }: SalesChartProps) {
                   hideLabel
                   formatter={(value) =>
                     viewMode === "sales"
-                      ? [`$${Number(value).toFixed(2)}`, "Ventas"]
-                      : [`${Number(value)}`, "Pedidos"]
+                      ? [`$${Number(value).toFixed(2)} `, "Ventas"]
+                      : [`${Number(value)} `, "Pedidos"]
                   }
                 />
               }

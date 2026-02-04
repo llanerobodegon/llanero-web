@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import {
   ShoppingBag,
   Search,
@@ -13,6 +14,51 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+// Notification sound function
+function playNotificationSound() {
+  try {
+    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
+
+    // Create oscillator for the notification sound
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+
+    // Configure sound - pleasant notification tone
+    oscillator.frequency.setValueAtTime(830, audioContext.currentTime) // First tone
+    oscillator.type = "sine"
+
+    // Volume envelope
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.3)
+
+    // Second tone (higher pitch)
+    setTimeout(() => {
+      const osc2 = audioContext.createOscillator()
+      const gain2 = audioContext.createGain()
+
+      osc2.connect(gain2)
+      gain2.connect(audioContext.destination)
+
+      osc2.frequency.setValueAtTime(1046, audioContext.currentTime) // Higher tone
+      osc2.type = "sine"
+
+      gain2.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4)
+
+      osc2.start(audioContext.currentTime)
+      osc2.stop(audioContext.currentTime + 0.4)
+    }, 150)
+  } catch (err) {
+    console.log("Could not play notification sound:", err)
+  }
+}
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -55,7 +101,22 @@ export function OrdersContent() {
     selectOrder,
     clearSelectedOrder,
     updateOrder,
+    onNewOrder,
   } = useOrdersViewModel()
+
+  // Register callback for new orders (realtime)
+  useEffect(() => {
+    onNewOrder((orderNumber) => {
+      // Play notification sound
+      playNotificationSound()
+
+      // Show toast
+      toast.info(`Nuevo pedido: ${orderNumber}`, {
+        description: "Se ha recibido un nuevo pedido",
+        duration: 5000,
+      })
+    })
+  }, [onNewOrder])
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("")

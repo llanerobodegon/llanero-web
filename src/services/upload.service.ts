@@ -4,19 +4,17 @@ import { createClient } from "@/lib/supabase/client";
 
 const supabase = createClient();
 
+const BUCKET_NAME = "admin-app";
+
 export const uploadService = {
-  async uploadImage(
-    file: File,
-    bucket: string,
-    folder?: string
-  ): Promise<string> {
+  async uploadImage(file: File, folder: string): Promise<string> {
     // Generate unique filename
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-    const filePath = folder ? `${folder}/${fileName}` : fileName;
+    const filePath = `${folder}/${fileName}`;
 
     const { error } = await supabase.storage
-      .from(bucket)
+      .from(BUCKET_NAME)
       .upload(filePath, file, {
         cacheControl: "3600",
         upsert: false,
@@ -27,31 +25,47 @@ export const uploadService = {
     }
 
     // Get public URL
-    const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(filePath);
 
     return data.publicUrl;
   },
 
-  async deleteImage(url: string, bucket: string): Promise<void> {
+  async deleteImage(url: string): Promise<void> {
     // Extract file path from URL
-    const urlParts = url.split(`${bucket}/`);
+    const urlParts = url.split(`${BUCKET_NAME}/`);
     if (urlParts.length < 2) return;
 
     const filePath = urlParts[1];
 
-    const { error } = await supabase.storage.from(bucket).remove([filePath]);
+    const { error } = await supabase.storage.from(BUCKET_NAME).remove([filePath]);
 
     if (error) {
       throw new Error(error.message);
     }
   },
 
-  // Specific helpers for warehouse logos
-  async uploadWarehouseLogo(file: File): Promise<string> {
-    return this.uploadImage(file, "warehouse-logos");
+  // Specific helpers for each folder
+  async uploadCategoryImage(file: File): Promise<string> {
+    return this.uploadImage(file, "categories");
   },
 
-  async deleteWarehouseLogo(url: string): Promise<void> {
-    return this.deleteImage(url, "warehouse-logos");
+  async uploadSubcategoryImage(file: File): Promise<string> {
+    return this.uploadImage(file, "subcategories");
+  },
+
+  async uploadWarehouseLogo(file: File): Promise<string> {
+    return this.uploadImage(file, "warehouses");
+  },
+
+  async uploadProductImage(file: File): Promise<string> {
+    return this.uploadImage(file, "products");
+  },
+
+  async uploadPaymentProof(file: File): Promise<string> {
+    return this.uploadImage(file, "payment-proofs");
+  },
+
+  async uploadSliderImage(file: File): Promise<string> {
+    return this.uploadImage(file, "sliders");
   },
 };

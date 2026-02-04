@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   ordersService,
   Order,
@@ -10,6 +10,8 @@ import {
   UpdateOrderData,
 } from "@/src/services/orders.service"
 import { useWarehouseContext } from "@/src/contexts/warehouse-context"
+import { createClient } from "@/lib/supabase/client"
+import type { RealtimeChannel } from "@supabase/supabase-js"
 
 export type { Order, OrderListItem, OrderStatus, PaymentStatus, UpdateOrderData }
 
@@ -37,6 +39,7 @@ interface UseOrdersViewModelReturn {
   clearSelectedOrder: () => void
   updateOrder: (id: string, data: UpdateOrderData) => Promise<Order>
   refresh: () => Promise<void>
+  onNewOrder: (callback: (orderNumber: string) => void) => void
 }
 
 export function useOrdersViewModel(): UseOrdersViewModelReturn {
@@ -52,6 +55,10 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [filters, setFilters] = useState<{ status?: OrderStatus; paymentStatus?: PaymentStatus }>({})
+
+  // Realtime
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const newOrderCallbackRef = useRef<((orderNumber: string) => void) | null>(null)
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -99,6 +106,10 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
     fetchDeliveryMembers()
   }, [fetchDeliveryMembers])
 
+  const registerNewOrderCallback = useCallback((callback: (orderNumber: string) => void) => {
+    newOrderCallbackRef.current = callback
+  }, [])
+
   const selectOrder = useCallback(async (id: string) => {
     try {
       setIsLoadingOrder(true)
@@ -111,6 +122,75 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
       setIsLoadingOrder(false)
     }
   }, [])
+
+  // Realtime subscription
+  useEffect(() => {
+    const supabase = createClient()
+
+    // Create channel for orders table
+    const channel = supabase
+      .channel("orders-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "orders",
+        },
+        (payload) => {
+          console.log("📦 Realtime INSERT received:", payload)
+          // Check if the new order matches our warehouse filter
+          const newOrder = payload.new as { warehouse_id: string; order_number: string }
+
+          if (!selectedWarehouse || newOrder.warehouse_id === selectedWarehouse.id) {
+            // Refresh the orders list
+            fetchOrders()
+
+            // Call the callback if registered
+            if (newOrderCallbackRef.current) {
+              newOrderCallbackRef.current(newOrder.order_number)
+            }
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "orders",
+        },
+        (payload) => {
+          console.log("📦 Realtime UPDATE received:", payload)
+          const updatedOrder = payload.new as { warehouse_id: string; id: string }
+
+          if (!selectedWarehouse || updatedOrder.warehouse_id === selectedWarehouse.id) {
+            // Refresh the orders list
+            fetchOrders()
+
+            // If this order is currently selected, refresh it
+            if (selectedOrder?.id === updatedOrder.id) {
+              selectOrder(updatedOrder.id)
+            }
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        console.log("📦 Realtime subscription status:", status)
+        if (err) {
+          console.error("📦 Realtime subscription error:", err)
+        }
+      })
+
+    channelRef.current = channel
+
+    // Cleanup on unmount
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [selectedWarehouse, fetchOrders, selectedOrder?.id, selectOrder])
 
   const clearSelectedOrder = useCallback(() => {
     setSelectedOrder(null)
@@ -161,5 +241,6 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
     clearSelectedOrder,
     updateOrder,
     refresh: fetchOrders,
+    onNewOrder: registerNewOrderCallback,
   }
 }

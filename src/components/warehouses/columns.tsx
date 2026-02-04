@@ -15,9 +15,10 @@ import { WarehouseWithProductCount } from "@/src/viewmodels/useWarehousesViewMod
 interface ColumnsProps {
   onEdit: (warehouse: WarehouseWithProductCount) => void
   onDelete: (warehouse: WarehouseWithProductCount) => void
+  onViewProducts: (warehouse: WarehouseWithProductCount) => void
 }
 
-export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<WarehouseWithProductCount>[] {
+export function getColumns({ onEdit, onDelete, onViewProducts }: ColumnsProps): ColumnDef<WarehouseWithProductCount>[] {
   return [
     {
       accessorKey: "name",
@@ -45,11 +46,15 @@ export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<Wareho
       header: "Productos",
       cell: ({ row }) => {
         const count = row.original.productCount
+        const warehouse = row.original
         return (
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => onViewProducts(warehouse)}
+            className="flex items-center gap-2 hover:bg-muted px-2 py-1 rounded-md transition-colors cursor-pointer"
+          >
             <Package className="h-4 w-4 text-muted-foreground" />
             <span>{count}</span>
-          </div>
+          </button>
         )
       },
     },

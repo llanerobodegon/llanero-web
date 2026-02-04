@@ -121,3 +121,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes slide {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-208px * 8));
+  }
+}
+
+.animate-slide {
+  animation: slide 25s linear infinite;
+}

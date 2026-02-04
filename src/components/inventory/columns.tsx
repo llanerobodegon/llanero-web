@@ -4,6 +4,7 @@ import Image from "next/image"
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,15 +39,38 @@ interface ColumnsProps {
 export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<ProductItem>[] {
   return [
     {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Seleccionar todos"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Seleccionar fila"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
       accessorKey: "name",
       header: "Producto",
       cell: ({ row }) => {
         const item = row.original
         const imageUrl = item.imageUrls?.[0]
+        const isValidUrl = imageUrl && (imageUrl.startsWith("http://") || imageUrl.startsWith("https://") || imageUrl.startsWith("/"))
         return (
           <div className="flex items-center gap-3">
             <div className="relative h-9 w-9 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
-              {imageUrl ? (
+              {isValidUrl ? (
                 <Image
                   src={imageUrl}
                   alt={item.name}

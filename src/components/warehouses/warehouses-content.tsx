@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { toast } from "sonner"
-import { Plus, Store, Upload, X, Loader2, Trash2, Search } from "lucide-react"
+import { Plus, Store, Upload, X, Loader2, Trash2, Search, Package, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +37,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
+import { inventoryService, InventoryItem } from "@/src/services/inventory.service"
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -76,6 +84,12 @@ export function WarehousesContent() {
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [warehouseToDelete, setWarehouseToDelete] = useState<WarehouseWithProductCount | null>(null)
+
+  // Products modal state
+  const [productsModalOpen, setProductsModalOpen] = useState(false)
+  const [selectedWarehouseForProducts, setSelectedWarehouseForProducts] = useState<WarehouseWithProductCount | null>(null)
+  const [warehouseProducts, setWarehouseProducts] = useState<InventoryItem[]>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("")
@@ -246,13 +260,42 @@ export function WarehousesContent() {
     }
   }
 
+  const fetchWarehouseProducts = useCallback(async (warehouseId: string) => {
+    setIsLoadingProducts(true)
+    try {
+      const result = await inventoryService.getPaginated(
+        { page: 1, pageSize: 100 },
+        { warehouseId }
+      )
+      setWarehouseProducts(result.data)
+    } catch (err) {
+      console.error("Error fetching warehouse products:", err)
+      toast.error("Error al cargar los productos")
+    } finally {
+      setIsLoadingProducts(false)
+    }
+  }, [])
+
+  const handleViewProducts = (warehouse: WarehouseWithProductCount) => {
+    setSelectedWarehouseForProducts(warehouse)
+    setProductsModalOpen(true)
+    fetchWarehouseProducts(warehouse.id)
+  }
+
+  const handleCloseProductsModal = () => {
+    setProductsModalOpen(false)
+    setSelectedWarehouseForProducts(null)
+    setWarehouseProducts([])
+  }
+
   const columns = useMemo(
     () =>
       getColumns({
         onEdit: openEditDrawer,
         onDelete: handleDeleteClick,
+        onViewProducts: handleViewProducts,
       }),
-    []
+    [handleViewProducts]
   )
 
   if (isLoading) {
@@ -580,6 +623,85 @@ export function WarehousesContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Products Modal */}
+      <Dialog open={productsModalOpen} onOpenChange={handleCloseProductsModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Productos en {selectedWarehouseForProducts?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedWarehouseForProducts?.productCount} producto(s) en este bodegón
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto">
+            {isLoadingProducts ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : warehouseProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Package className="h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No hay productos en este bodegón</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {warehouseProducts.map((item) => (
+                  <div
+                    key={`${item.warehouseId}-${item.productId}`}
+                    className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30"
+                  >
+                    {/* Product Image */}
+                    <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                      {item.product.imageUrls?.[0] ? (
+                        <Image
+                          src={item.product.imageUrls[0]}
+                          alt={item.product.name}
+                          fill
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Product Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{item.product.name}</p>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {item.product.sku && <span>SKU: {item.product.sku}</span>}
+                        {item.product.category && (
+                          <span>{item.product.category.name}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stock & Price */}
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Stock</p>
+                        <p className="font-medium">{item.stock}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Precio</p>
+                        <p className="font-medium flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          {(item.price ?? item.product.price).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

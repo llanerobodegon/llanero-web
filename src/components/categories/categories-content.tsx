@@ -180,7 +180,7 @@ export function CategoriesContent() {
       if (imageFile) {
         setIsUploadingImage(true)
         try {
-          imageUrl = await uploadService.uploadImage(imageFile, "category-images", "categories")
+          imageUrl = await uploadService.uploadCategoryImage(imageFile)
         } catch (err) {
           console.error("Error uploading image:", err)
           setImageError("Error al subir la imagen")

@@ -1,10 +1,12 @@
 "use client"
 
+import { useMemo, useCallback } from "react"
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
+  RowSelectionState,
 } from "@tanstack/react-table"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
@@ -25,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-interface DataTableProps<TData, TValue> {
+interface DataTableProps<TData extends { id: string }, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   pagination: {
@@ -36,21 +38,68 @@ interface DataTableProps<TData, TValue> {
   }
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
+  selectedIds?: Set<string>
+  onSelectionChange?: (selectedIds: Set<string>) => void
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends { id: string }, TValue>({
   columns,
   data,
   pagination,
   onPageChange,
   onPageSizeChange,
+  selectedIds = new Set(),
+  onSelectionChange,
 }: DataTableProps<TData, TValue>) {
+  // Convert Set<string> to RowSelectionState for current page items
+  const rowSelection: RowSelectionState = useMemo(() => {
+    const selection: RowSelectionState = {}
+    data.forEach((row) => {
+      if (selectedIds.has(row.id)) {
+        selection[row.id] = true
+      }
+    })
+    return selection
+  }, [data, selectedIds])
+
+  // Handle row selection changes
+  const handleRowSelectionChange = useCallback(
+    (updaterOrValue: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+      if (!onSelectionChange) return
+
+      const newRowSelection = typeof updaterOrValue === "function"
+        ? updaterOrValue(rowSelection)
+        : updaterOrValue
+
+      // Create new Set starting from current selectedIds
+      const newSelectedIds = new Set(selectedIds)
+
+      // Update selection for current page items
+      data.forEach((row) => {
+        if (newRowSelection[row.id]) {
+          newSelectedIds.add(row.id)
+        } else {
+          newSelectedIds.delete(row.id)
+        }
+      })
+
+      onSelectionChange(newSelectedIds)
+    },
+    [data, selectedIds, onSelectionChange, rowSelection]
+  )
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
     pageCount: pagination.totalPages,
+    enableRowSelection: true,
+    getRowId: (row) => row.id,
+    state: {
+      rowSelection,
+    },
+    onRowSelectionChange: handleRowSelectionChange,
   })
 
   return (
@@ -106,8 +155,16 @@ export function DataTable<TData, TValue>({
 
       {/* Pagination */}
       <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Filas por página</span>
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            {selectedIds.size > 0 ? (
+              <span>{selectedIds.size} seleccionado(s)</span>
+            ) : (
+              <span>0 seleccionado(s)</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Filas por página</span>
           <Select
             value={String(pagination.pageSize)}
             onValueChange={(value) => onPageSizeChange(Number(value))}
@@ -123,6 +180,7 @@ export function DataTable<TData, TValue>({
               ))}
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">

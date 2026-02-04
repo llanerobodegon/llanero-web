@@ -214,7 +214,7 @@ export function SubcategoriesContent() {
       if (imageFile) {
         setIsUploadingImage(true)
         try {
-          imageUrl = await uploadService.uploadImage(imageFile, "subcategory-images", "subcategories")
+          imageUrl = await uploadService.uploadSubcategoryImage(imageFile)
         } catch (err) {
           console.error("Error uploading image:", err)
           setImageError("Error al subir la imagen")

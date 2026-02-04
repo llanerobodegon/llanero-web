@@ -13,6 +13,7 @@ import {
   DollarSign,
   Barcode,
   Store,
+  CirclePower,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -117,6 +118,9 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
   const [sku, setSku] = useState("")
   const [barcode, setBarcode] = useState("")
 
+  // Form state - Status
+  const [isActive, setIsActive] = useState(true)
+
   // Form state - Discount/Promo (global)
   const [isOnDiscount, setIsOnDiscount] = useState(false)
   const [isPromo, setIsPromo] = useState(false)
@@ -171,10 +175,11 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           if (product) {
             setName(product.name)
             setDescription(product.description || "")
-            setCategoryId(product.categoryId)
+            setCategoryId(product.categoryId || "")
             setSubcategoryId(product.subcategoryId || "")
             setPrice(product.price.toString())
             setExistingImageUrls(product.imageUrls)
+            setIsActive(product.isActive)
 
             // Set breadcrumb override with product name
             setOverride(productId, product.name)
@@ -414,7 +419,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
       if (imagesToDelete.length > 0) {
         await Promise.all(
           imagesToDelete.map((url) =>
-            uploadService.deleteImage(url, "product-images").catch((err) => {
+            uploadService.deleteImage(url).catch((err) => {
               console.error("Error deleting image:", err)
             })
           )
@@ -424,7 +429,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
       // Upload new images
       if (imageFiles.length > 0) {
         const uploadPromises = imageFiles.map((file) =>
-          uploadService.uploadImage(file, "product-images", "products")
+          uploadService.uploadProductImage(file)
         )
         const newUrls = await Promise.all(uploadPromises)
         finalImageUrls = [...finalImageUrls, ...newUrls]
@@ -435,12 +440,13 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
         await productService.update(productId, {
           name: name.trim(),
           description: description.trim() || null,
-          categoryId,
+          categoryId: categoryId || undefined,
           subcategoryId: subcategoryId || null,
           imageUrls: finalImageUrls,
           price: parseFloat(price),
           sku: hasSkuBarcode && sku.trim() ? sku.trim() : null,
           barcode: hasSkuBarcode && barcode.trim() ? barcode.trim() : null,
+          isActive,
         })
 
         // Update warehouse products
@@ -612,6 +618,39 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column */}
         <div className="space-y-6">
+          {/* Status Card - only show in edit mode */}
+          {isEditMode && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CirclePower className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle>Estado</CardTitle>
+                </div>
+                <CardDescription>
+                  Controla la visibilidad del producto
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="isActive" className="cursor-pointer">
+                      Producto {isActive ? "activo" : "inactivo"}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {isActive ? "Visible en el catálogo" : "Oculto del catálogo"}
+                    </p>
+                  </div>
+                  <Switch
+                    id="isActive"
+                    checked={isActive}
+                    onCheckedChange={setIsActive}
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* General Info Card */}
           <Card>
             <CardHeader>

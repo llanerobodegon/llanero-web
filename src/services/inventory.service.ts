@@ -297,6 +297,95 @@ class InventoryService {
       throw new Error("Failed to delete inventory item")
     }
   }
+
+  async bulkAddToWarehouses(
+    stock: number = 10
+  ): Promise<{ added: number; skipped: number; errors: number }> {
+    // Get all products
+    const { data: products, error: productsError } = await supabase
+      .from("products")
+      .select("id, price")
+
+    if (productsError && productsError.message) {
+      console.error("Error fetching products:", productsError)
+      throw new Error("Failed to fetch products")
+    }
+
+    // Get all active warehouses
+    const { data: warehouses, error: warehousesError } = await supabase
+      .from("warehouses")
+      .select("id")
+      .eq("is_active", true)
+
+    if (warehousesError && warehousesError.message) {
+      console.error("Error fetching warehouses:", warehousesError)
+      throw new Error("Failed to fetch warehouses")
+    }
+
+    if (!products?.length || !warehouses?.length) {
+      return { added: 0, skipped: 0, errors: 0 }
+    }
+
+    // Get existing warehouse_products to avoid duplicates
+    const { data: existing } = await supabase
+      .from("warehouse_products")
+      .select("warehouse_id, product_id")
+
+    const existingSet = new Set(
+      (existing || []).map((e) => `${e.warehouse_id}-${e.product_id}`)
+    )
+
+    // Prepare records to insert
+    const recordsToInsert: {
+      warehouse_id: string
+      product_id: string
+      stock: number
+      price: number
+      is_available: boolean
+    }[] = []
+
+    for (const warehouse of warehouses) {
+      for (const product of products) {
+        const key = `${warehouse.id}-${product.id}`
+        if (!existingSet.has(key)) {
+          recordsToInsert.push({
+            warehouse_id: warehouse.id,
+            product_id: product.id,
+            stock,
+            price: product.price,
+            is_available: true,
+          })
+        }
+      }
+    }
+
+    const skipped = (products.length * warehouses.length) - recordsToInsert.length
+
+    if (recordsToInsert.length === 0) {
+      return { added: 0, skipped, errors: 0 }
+    }
+
+    // Insert in batches of 100 to avoid timeout
+    const batchSize = 100
+    let added = 0
+    let errors = 0
+
+    for (let i = 0; i < recordsToInsert.length; i += batchSize) {
+      const batch = recordsToInsert.slice(i, i + batchSize)
+      const { error } = await supabase
+        .from("warehouse_products")
+        .insert(batch)
+
+      if (error) {
+        console.error("Error inserting batch:", error)
+        errors += batch.length
+      } else {
+        added += batch.length
+      }
+    }
+
+    return { added, skipped, errors }
+  }
 }
 
 export const inventoryService = new InventoryService()
