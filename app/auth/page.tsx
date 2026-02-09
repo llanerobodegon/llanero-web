@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
 import { LoginForm } from "@/src/views/LoginForm"
 
@@ -12,7 +13,9 @@ export default function LoginPage() {
         <a href="/" className="flex items-center gap-2 self-center font-medium">
           <img src="/llanero-logo.png" alt="Llanero" className="h-10" />
         </a>
-        <LoginForm />
+        <Suspense>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { Button } from "@/components/ui/button";
@@ -211,6 +212,8 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const searchParams = useSearchParams();
+  const unauthorizedError = searchParams.get("error") === "unauthorized";
   const { isLoading, error, login } = useLoginViewModel();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -392,9 +395,10 @@ export function LoginForm({
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              {error && (
-                <div className="text-sm text-destructive text-center p-2 bg-destructive/10 rounded-md">
-                  {error}
+              {(error || unauthorizedError) && (
+                <div className="flex items-center gap-2 text-sm text-destructive text-center p-3 bg-destructive/10 rounded-md">
+                  <ShieldAlert className="size-4 shrink-0" />
+                  <span>{error || "No tienes permisos para acceder al panel de administración"}</span>
                 </div>
               )}
               <Field>

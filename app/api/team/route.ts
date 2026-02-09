@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       firstName,
       lastName,
       email,
+      password,
       phoneCode,
       phone,
       roleId,
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !roleId) {
+    if (!firstName || !lastName || !email || !roleId || !password) {
       return NextResponse.json(
         { error: "Faltan campos requeridos" },
         { status: 400 }
@@ -109,21 +110,21 @@ export async function POST(request: NextRequest) {
 
     const roleName = roleData?.name || "customer"
 
-    // Invite user by email - they will receive an email to set their password
-    console.log("Inviting user with email:", email)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // Create user with password and auto-confirm email
+    console.log("Creating user with email:", email)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          role: roleName,
-        },
-      }
-    )
+      password,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        role: roleName,
+      },
+    })
 
     if (authError) {
-      console.error("Error inviting user:", authError)
+      console.error("Error creating user:", authError)
       console.error("Auth error details:", JSON.stringify(authError, null, 2))
       if (authError.message?.includes("already been registered")) {
         return NextResponse.json(
@@ -132,12 +133,12 @@ export async function POST(request: NextRequest) {
         )
       }
       return NextResponse.json(
-        { error: `Error al invitar el usuario: ${authError.message}` },
+        { error: `Error al crear el usuario: ${authError.message}` },
         { status: 500 }
       )
     }
 
-    console.log("User invited successfully:", authData.user.id)
+    console.log("User created successfully:", authData.user.id)
 
     const userId = authData.user.id
 

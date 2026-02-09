@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LoginCredentials } from "@/src/models/user.model";
 import { authService } from "@/src/services/auth.service";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 export function useLoginViewModel() {
   const router = useRouter();
@@ -15,7 +18,21 @@ export function useLoginViewModel() {
     setError(null);
 
     try {
-      await authService.login(credentials);
+      const { user } = await authService.login(credentials);
+
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role_id")
+        .eq("id", user.id)
+        .single();
+
+      const roleId = userData?.role_id;
+      if (roleId !== 2 && roleId !== 3) {
+        await authService.logout();
+        setError("No tienes permisos para acceder al panel de administración");
+        return;
+      }
+
       router.push("/admin");
       router.refresh();
     } catch (err) {

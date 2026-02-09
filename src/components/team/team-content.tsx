@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { toast } from "sonner"
-import { Plus, Users, Search, X, Loader2, Check } from "lucide-react"
+import { Plus, Users, Search, X, Loader2, Check, Eye, EyeOff } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -99,6 +99,8 @@ export function TeamContent() {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [phoneCode, setPhoneCode] = useState("0414")
   const [phone, setPhone] = useState("")
   const [isActive, setIsActive] = useState(true)
@@ -134,6 +136,8 @@ export function TeamContent() {
     setFirstName("")
     setLastName("")
     setEmail("")
+    setPassword("")
+    setShowPassword(false)
     setPhoneCode("0414")
     setPhone("")
     setIsActive(true)
@@ -184,8 +188,10 @@ export function TeamContent() {
 
   // Form validation
   const isFormValid = useMemo(() => {
-    return roleId && firstName.trim() && lastName.trim() && email.trim()
-  }, [roleId, firstName, lastName, email])
+    const baseValid = roleId && firstName.trim() && lastName.trim() && email.trim()
+    if (editingMember) return baseValid
+    return baseValid && password.length >= 8
+  }, [roleId, firstName, lastName, email, password, editingMember])
 
   const handleSubmit = async () => {
     if (!isFormValid || !roleId) return
@@ -196,6 +202,7 @@ export function TeamContent() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
+        ...(!editingMember && { password }),
         phoneCode: phone ? phoneCode : null,
         phone: phone || null,
         roleId,
@@ -551,6 +558,36 @@ export function TeamContent() {
                   </p>
                 )}
               </div>
+
+              {/* Password - only for creating */}
+              {!editingMember && (
+                <div className="space-y-2">
+                  <Label>
+                    Contraseña <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Mínimo 8 caracteres"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                  {password && password.length < 8 && (
+                    <p className="text-xs text-destructive">
+                      La contraseña debe tener al menos 8 caracteres
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Phone */}
               <div className="space-y-2">

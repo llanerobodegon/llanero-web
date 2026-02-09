@@ -55,7 +55,7 @@ export function Footer() {
 
         <div className="flex flex-col items-center gap-2 md:flex-row md:gap-4">
           <Link
-            href="/terminos"
+            href="/condiciones"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Términos y condiciones

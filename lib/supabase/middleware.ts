@@ -47,11 +47,32 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth page
-  if (user && request.nextUrl.pathname === "/auth") {
-    const url = request.nextUrl.clone()
-    url.pathname = "/admin"
-    return NextResponse.redirect(url)
+  // Role-based access control for authenticated users
+  if (user && (request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname === "/auth")) {
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role_id")
+      .eq("id", user.id)
+      .single()
+
+    const roleId = userData?.role_id
+    const isAllowed = roleId === 2 || roleId === 3
+
+    // Block unauthorized roles from admin
+    if (request.nextUrl.pathname.startsWith("/admin") && !isAllowed) {
+      await supabase.auth.signOut()
+      const url = request.nextUrl.clone()
+      url.pathname = "/auth"
+      url.searchParams.set("error", "unauthorized")
+      return NextResponse.redirect(url)
+    }
+
+    // Only redirect allowed roles from auth to admin
+    if (request.nextUrl.pathname === "/auth" && isAllowed) {
+      const url = request.nextUrl.clone()
+      url.pathname = "/admin"
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

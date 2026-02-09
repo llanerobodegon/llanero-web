@@ -37,6 +37,7 @@ export interface CreateTeamMemberData {
   firstName: string
   lastName: string
   email: string
+  password?: string
   phoneCode?: string | null
   phone?: string | null
   roleId: number
@@ -235,6 +236,7 @@ class TeamService {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
+        password: data.password,
         phoneCode: data.phoneCode,
         phone: data.phone,
         roleId: data.roleId,
