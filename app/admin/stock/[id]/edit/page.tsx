@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { Metadata } from "next"
 import { ProductFormContent } from "@/src/components/inventory/product-form-content"
 
@@ -11,5 +12,9 @@ interface EditProductPageProps {
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
   const { id } = await params
-  return <ProductFormContent productId={id} />
+  return (
+    <Suspense>
+      <ProductFormContent productId={id} />
+    </Suspense>
+  )
 }

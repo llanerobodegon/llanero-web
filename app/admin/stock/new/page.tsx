@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { Metadata } from "next"
 import { ProductFormContent } from "@/src/components/inventory/product-form-content"
 
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 }
 
 export default function AddProductPage() {
-  return <ProductFormContent />
+  return (
+    <Suspense>
+      <ProductFormContent />
+    </Suspense>
+  )
 }
