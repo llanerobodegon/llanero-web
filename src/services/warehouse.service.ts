@@ -55,7 +55,7 @@ export const warehouseService = {
     return (data || [])
       .map((row) => row.warehouses)
       .filter(Boolean)
-      .map((w) => transformWarehouse(w as Record<string, unknown>));
+      .map((w) => transformWarehouse(w as unknown as Record<string, unknown>));
   },
 
   async getById(id: string): Promise<Warehouse | null> {
