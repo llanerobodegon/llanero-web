@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreVertical, Package, Store, Pencil, Trash2 } from "lucide-react"
+import { MoreVertical, Package, Store, Pencil, Trash2, DollarSign } from "lucide-react"
 import { WarehouseWithProductCount } from "@/src/viewmodels/useWarehousesViewModel"
 
 interface ColumnsProps {
@@ -55,6 +55,19 @@ export function getColumns({ onEdit, onDelete, onViewProducts }: ColumnsProps): 
             <Package className="h-4 w-4 text-muted-foreground" />
             <span>{count}</span>
           </button>
+        )
+      },
+    },
+    {
+      accessorKey: "deliveryFee",
+      header: "Delivery",
+      cell: ({ row }) => {
+        const fee = row.original.deliveryFee
+        return (
+          <div className="flex items-center gap-1 text-sm">
+            <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{fee.toFixed(2)}</span>
+          </div>
         )
       },
     },

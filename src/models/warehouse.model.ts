@@ -36,6 +36,9 @@ export interface Product {
   sku: string | null;
   price: number;
   isActive: boolean;
+  isOnDiscount: boolean;
+  isPromo: boolean;
+  discountPrice: number | null;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -48,6 +51,7 @@ export interface Warehouse {
   address: string | null;
   phone: string | null;
   logoUrl: string | null;
+  deliveryFee: number;
   isActive: boolean;
   createdBy: string | null;
   createdAt: string;
@@ -60,12 +64,7 @@ export interface WarehouseProduct {
   warehouse?: Warehouse;
   productId: string;
   product?: Product;
-  stock: number;
-  price: number | null; // Override price (null = use product base price)
   isAvailable: boolean;
-  isOnDiscount: boolean;
-  isPromo: boolean;
-  discountPrice: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,6 +117,9 @@ export interface CreateProductData {
   sku?: string;
   price: number;
   isActive?: boolean;
+  isOnDiscount?: boolean;
+  isPromo?: boolean;
+  discountPrice?: number;
 }
 
 export interface UpdateProductData {
@@ -130,6 +132,9 @@ export interface UpdateProductData {
   sku?: string | null;
   price?: number;
   isActive?: boolean;
+  isOnDiscount?: boolean;
+  isPromo?: boolean;
+  discountPrice?: number | null;
 }
 
 export interface CreateWarehouseData {
@@ -137,6 +142,7 @@ export interface CreateWarehouseData {
   address?: string;
   phone?: string;
   logoUrl?: string;
+  deliveryFee?: number;
   isActive?: boolean;
 }
 
@@ -145,27 +151,18 @@ export interface UpdateWarehouseData {
   address?: string | null;
   phone?: string | null;
   logoUrl?: string | null;
+  deliveryFee?: number;
   isActive?: boolean;
 }
 
 export interface CreateWarehouseProductData {
   warehouseId: string;
   productId: string;
-  stock?: number;
-  price?: number;
   isAvailable?: boolean;
-  isOnDiscount?: boolean;
-  isPromo?: boolean;
-  discountPrice?: number;
 }
 
 export interface UpdateWarehouseProductData {
-  stock?: number;
-  price?: number | null;
   isAvailable?: boolean;
-  isOnDiscount?: boolean;
-  isPromo?: boolean;
-  discountPrice?: number | null;
 }
 
 export interface AssignWarehouseUserData {

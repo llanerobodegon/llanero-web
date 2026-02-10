@@ -34,9 +34,10 @@ export interface ProductItem {
 interface ColumnsProps {
   onEdit: (item: ProductItem) => void
   onDelete: (item: ProductItem) => void
+  showStatus?: boolean
 }
 
-export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<ProductItem>[] {
+export function getColumns({ onEdit, onDelete, showStatus = true }: ColumnsProps): ColumnDef<ProductItem>[] {
   return [
     {
       id: "select",
@@ -123,10 +124,10 @@ export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<Produc
         return <span className="font-medium">${price.toFixed(2)}</span>
       },
     },
-    {
+    ...(showStatus ? [{
       accessorKey: "isActive",
       header: "Estado",
-      cell: ({ row }) => {
+      cell: ({ row }: { row: { original: ProductItem } }) => {
         const isActive = row.original.isActive
         return (
           <Badge
@@ -138,7 +139,7 @@ export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<Produc
           </Badge>
         )
       },
-    },
+    }] : []),
     {
       id: "actions",
       header: () => <div className="text-right"></div>,

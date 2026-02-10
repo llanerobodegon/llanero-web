@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { inventoryService, InventoryItem } from "@/src/services/inventory.service"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
@@ -63,6 +64,8 @@ export function WarehousesContent() {
     deleteWarehouse,
   } = useWarehousesViewModel()
 
+  const { refreshWarehouses } = useWarehouseContext()
+
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -73,6 +76,7 @@ export function WarehousesContent() {
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
   const [isActive, setIsActive] = useState(true)
+  const [deliveryFee, setDeliveryFee] = useState("")
 
   // Logo state
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -105,6 +109,7 @@ export function WarehousesContent() {
     setName("")
     setAddress("")
     setPhone("")
+    setDeliveryFee("")
     setIsActive(true)
     setLogoFile(null)
     setLogoPreview(null)
@@ -122,6 +127,7 @@ export function WarehousesContent() {
     setName(warehouse.name)
     setAddress(warehouse.address || "")
     setPhone(warehouse.phone || "")
+    setDeliveryFee(warehouse.deliveryFee ? warehouse.deliveryFee.toString() : "")
     setIsActive(warehouse.isActive)
     setLogoPreview(warehouse.logoUrl)
     setLogoFile(null)
@@ -220,6 +226,7 @@ export function WarehousesContent() {
         address: address.trim() || undefined,
         phone: phone.trim() || undefined,
         logoUrl,
+        deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
         isActive,
       }
 
@@ -231,6 +238,7 @@ export function WarehousesContent() {
         toast.success("Bodegón creado correctamente")
       }
 
+      await refreshWarehouses()
       handleCloseDrawer()
     } catch (err) {
       console.error("Error saving warehouse:", err)
@@ -250,6 +258,7 @@ export function WarehousesContent() {
 
     try {
       await deleteWarehouse(warehouseToDelete.id)
+      await refreshWarehouses()
       toast.success("Bodegón eliminado correctamente")
     } catch (err) {
       console.error("Error deleting warehouse:", err)
@@ -476,6 +485,20 @@ export function WarehousesContent() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="deliveryFee">Costo de Delivery ($)</Label>
+                <Input
+                  id="deliveryFee"
+                  type="number"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  value={deliveryFee}
+                  onChange={(e) => setDeliveryFee(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Logo</Label>
                 <input
                   ref={fileInputRef}
@@ -681,17 +704,19 @@ export function WarehousesContent() {
                       </div>
                     </div>
 
-                    {/* Stock & Price */}
+                    {/* Price & Availability */}
                     <div className="flex items-center gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground text-xs">Stock</p>
-                        <p className="font-medium">{item.stock}</p>
-                      </div>
                       <div className="text-center">
                         <p className="text-muted-foreground text-xs">Precio</p>
                         <p className="font-medium flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          {(item.price ?? item.product.price).toFixed(2)}
+                          {item.product.price.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Estado</p>
+                        <p className={`font-medium text-xs ${item.isAvailable ? "text-green-600" : "text-muted-foreground"}`}>
+                          {item.isAvailable ? "Disponible" : "No disponible"}
                         </p>
                       </div>
                     </div>

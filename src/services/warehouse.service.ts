@@ -18,6 +18,7 @@ function transformWarehouse(row: Record<string, unknown>): Warehouse {
     address: row.address as string | null,
     phone: row.phone as string | null,
     logoUrl: row.logo_url as string | null,
+    deliveryFee: Number(row.delivery_fee) || 0,
     isActive: row.is_active as boolean,
     createdBy: row.created_by as string | null,
     createdAt: row.created_at as string,
@@ -39,6 +40,22 @@ export const warehouseService = {
     }
 
     return (data || []).map(transformWarehouse);
+  },
+
+  async getByUserId(userId: string): Promise<Warehouse[]> {
+    const { data, error } = await supabase
+      .from("warehouse_users")
+      .select("warehouses(*)")
+      .eq("user_id", userId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data || [])
+      .map((row) => row.warehouses)
+      .filter(Boolean)
+      .map((w) => transformWarehouse(w as Record<string, unknown>));
   },
 
   async getById(id: string): Promise<Warehouse | null> {
@@ -66,6 +83,7 @@ export const warehouseService = {
         address: warehouseData.address || null,
         phone: warehouseData.phone || null,
         logo_url: warehouseData.logoUrl || null,
+        delivery_fee: warehouseData.deliveryFee ?? 0,
         is_active: warehouseData.isActive ?? true,
         created_by: userData.user?.id || null,
       })
@@ -86,6 +104,7 @@ export const warehouseService = {
     if (warehouseData.address !== undefined) updateData.address = warehouseData.address;
     if (warehouseData.phone !== undefined) updateData.phone = warehouseData.phone;
     if (warehouseData.logoUrl !== undefined) updateData.logo_url = warehouseData.logoUrl;
+    if (warehouseData.deliveryFee !== undefined) updateData.delivery_fee = warehouseData.deliveryFee;
     if (warehouseData.isActive !== undefined) updateData.is_active = warehouseData.isActive;
 
     const { data, error } = await supabase

@@ -15,6 +15,9 @@ export interface Product {
   barcode: string | null
   price: number
   isActive: boolean
+  isOnDiscount: boolean
+  isPromo: boolean
+  discountPrice: number | null
   categoryId: string
   subcategoryId: string | null
   category: {
@@ -67,6 +70,9 @@ function mapRowToProduct(row: any): Product {
     barcode: row.barcode,
     price: row.price,
     isActive: row.is_active,
+    isOnDiscount: row.is_on_discount ?? false,
+    isPromo: row.is_promo ?? false,
+    discountPrice: row.discount_price ?? null,
     categoryId: row.category_id,
     subcategoryId: row.subcategory_id,
     category: row.categories
@@ -89,34 +95,19 @@ function mapRowToProduct(row: any): Product {
 class ProductService {
   async getPaginated(
     params: PaginationParams,
-    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string }
+    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[] }
   ): Promise<PaginatedResponse<Product>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
+    const hasWarehouseFilter = filters?.warehouseId || (filters?.warehouseIds && filters.warehouseIds.length > 0)
 
-    // If filtering by warehouse, get product IDs first
-    let productIdsInWarehouse: string[] | null = null
-    if (filters?.warehouseId) {
-      const { data: warehouseProducts } = await supabase
-        .from("warehouse_products")
-        .select("product_id")
-        .eq("warehouse_id", filters.warehouseId)
-
-      productIdsInWarehouse = (warehouseProducts || []).map((wp) => wp.product_id)
-
-      if (productIdsInWarehouse.length === 0) {
-        return {
-          data: [],
-          totalCount: 0,
-          page,
-          pageSize,
-          totalPages: 0,
-        }
-      }
+    // When filtering by warehouse, query through warehouse_products to avoid RLS issues on products
+    if (hasWarehouseFilter) {
+      return this.getPaginatedByWarehouse(params, filters!)
     }
 
-    // Build count query
+    // No warehouse filter (admin "Todos") - query products directly
     let countQuery = supabase
       .from("products")
       .select("*", { count: "exact", head: true })
@@ -127,11 +118,8 @@ class ProductService {
     if (filters?.subcategoryIds && filters.subcategoryIds.length > 0) {
       countQuery = countQuery.in("subcategory_id", filters.subcategoryIds)
     }
-    if (productIdsInWarehouse) {
-      countQuery = countQuery.in("id", productIdsInWarehouse)
-    }
     if (filters?.search) {
-      countQuery = countQuery.ilike("name", `%${filters.search}%`)
+      countQuery = countQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -141,7 +129,6 @@ class ProductService {
       throw new Error("Failed to count products")
     }
 
-    // Build data query
     let dataQuery = supabase
       .from("products")
       .select(`
@@ -153,6 +140,9 @@ class ProductService {
         barcode,
         price,
         is_active,
+        is_on_discount,
+        is_promo,
+        discount_price,
         category_id,
         subcategory_id,
         created_at,
@@ -175,13 +165,8 @@ class ProductService {
     if (filters?.subcategoryIds && filters.subcategoryIds.length > 0) {
       dataQuery = dataQuery.in("subcategory_id", filters.subcategoryIds)
     }
-    if (productIdsInWarehouse) {
-      dataQuery = dataQuery.in("id", productIdsInWarehouse)
-    }
-
-    // Apply search filter server-side
     if (filters?.search) {
-      dataQuery = dataQuery.ilike("name", `%${filters.search}%`)
+      dataQuery = dataQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`)
     }
 
     const { data, error } = await dataQuery
@@ -192,6 +177,137 @@ class ProductService {
     }
 
     const items: Product[] = (data || []).map(mapRowToProduct)
+
+    return {
+      data: items,
+      totalCount: totalCount || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((totalCount || 0) / pageSize),
+    }
+  }
+
+  private async getPaginatedByWarehouse(
+    params: PaginationParams,
+    filters: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[] }
+  ): Promise<PaginatedResponse<Product>> {
+    const { page, pageSize } = params
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    // Step 1: Get unique product IDs from warehouse_products
+    let wpQuery = supabase
+      .from("warehouse_products")
+      .select("product_id")
+
+    if (filters.warehouseId) {
+      wpQuery = wpQuery.eq("warehouse_id", filters.warehouseId)
+    } else if (filters.warehouseIds && filters.warehouseIds.length > 0) {
+      wpQuery = wpQuery.in("warehouse_id", filters.warehouseIds)
+    }
+
+    const { data: wpData, error: wpError } = await wpQuery
+
+    if (wpError) {
+      console.error("Error fetching warehouse products:", wpError)
+      throw new Error("Failed to fetch warehouse products")
+    }
+
+    const productIds = [...new Set((wpData || []).map((wp) => wp.product_id))]
+
+    if (productIds.length === 0) {
+      return { data: [], totalCount: 0, page, pageSize, totalPages: 0 }
+    }
+
+    // Step 2: Count and fetch products using warehouse_products as base table
+    // Use warehouse_products with inner join to products to bypass RLS on products table
+    const selectFields = `
+      products!inner (
+        id,
+        name,
+        description,
+        image_urls,
+        sku,
+        barcode,
+        price,
+        is_active,
+        is_on_discount,
+        is_promo,
+        discount_price,
+        category_id,
+        subcategory_id,
+        created_at,
+        updated_at,
+        categories (
+          id,
+          name
+        ),
+        subcategories (
+          id,
+          name
+        )
+      )
+    `
+
+    // Count query
+    let countQuery = supabase
+      .from("warehouse_products")
+      .select("product_id", { count: "exact", head: true })
+
+    if (filters.warehouseId) {
+      countQuery = countQuery.eq("warehouse_id", filters.warehouseId)
+    } else if (filters.warehouseIds && filters.warehouseIds.length > 0) {
+      countQuery = countQuery.in("warehouse_id", filters.warehouseIds)
+    }
+
+    const { count: totalCount, error: countError } = await countQuery
+
+    if (countError) {
+      console.error("Error counting warehouse products:", countError)
+      throw new Error("Failed to count products")
+    }
+
+    // Data query
+    let dataQuery = supabase
+      .from("warehouse_products")
+      .select(selectFields)
+      .in("product_id", productIds)
+      .range(from, to)
+
+    if (filters.warehouseId) {
+      dataQuery = dataQuery.eq("warehouse_id", filters.warehouseId)
+    } else if (filters.warehouseIds && filters.warehouseIds.length > 0) {
+      dataQuery = dataQuery.in("warehouse_id", filters.warehouseIds)
+    }
+
+    if (filters.categoryIds && filters.categoryIds.length > 0) {
+      dataQuery = dataQuery.in("products.category_id", filters.categoryIds)
+    }
+    if (filters.subcategoryIds && filters.subcategoryIds.length > 0) {
+      dataQuery = dataQuery.in("products.subcategory_id", filters.subcategoryIds)
+    }
+    if (filters.search) {
+      dataQuery = dataQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`, { referencedTable: "products" })
+    }
+
+    const { data, error } = await dataQuery
+
+    if (error) {
+      console.error("Error fetching products by warehouse:", error)
+      throw new Error("Failed to fetch products")
+    }
+
+    // Map and deduplicate (a product could be in multiple warehouses)
+    const seen = new Set<string>()
+    const items: Product[] = []
+    for (const row of data || []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const product = (row as any).products
+      if (product && !seen.has(product.id)) {
+        seen.add(product.id)
+        items.push(mapRowToProduct(product))
+      }
+    }
 
     return {
       data: items,
@@ -214,6 +330,9 @@ class ProductService {
         barcode,
         price,
         is_active,
+        is_on_discount,
+        is_promo,
+        discount_price,
         category_id,
         subcategory_id,
         created_at,
@@ -298,6 +417,9 @@ class ProductService {
         barcode,
         price,
         is_active,
+        is_on_discount,
+        is_promo,
+        discount_price,
         category_id,
         subcategory_id,
         created_at,
@@ -331,6 +453,9 @@ class ProductService {
     barcode?: string | null
     price: number
     isActive?: boolean
+    isOnDiscount?: boolean
+    isPromo?: boolean
+    discountPrice?: number | null
     categoryId?: string | null
     subcategoryId?: string | null
     imageUrls?: string[]
@@ -344,6 +469,9 @@ class ProductService {
         barcode: data.barcode || null,
         price: data.price,
         is_active: data.isActive ?? true,
+        is_on_discount: data.isOnDiscount ?? false,
+        is_promo: data.isPromo ?? false,
+        discount_price: data.discountPrice ?? null,
         category_id: data.categoryId || null,
         subcategory_id: data.subcategoryId || null,
         image_urls: data.imageUrls || [],
@@ -369,6 +497,9 @@ class ProductService {
       barcode: string | null
       price: number
       isActive: boolean
+      isOnDiscount: boolean
+      isPromo: boolean
+      discountPrice: number | null
       categoryId: string
       subcategoryId: string | null
     }>
@@ -382,6 +513,9 @@ class ProductService {
     if (data.barcode !== undefined) updateData.barcode = data.barcode
     if (data.price !== undefined) updateData.price = data.price
     if (data.isActive !== undefined) updateData.is_active = data.isActive
+    if (data.isOnDiscount !== undefined) updateData.is_on_discount = data.isOnDiscount
+    if (data.isPromo !== undefined) updateData.is_promo = data.isPromo
+    if (data.discountPrice !== undefined) updateData.discount_price = data.discountPrice
     if (data.categoryId !== undefined) updateData.category_id = data.categoryId
     if (data.subcategoryId !== undefined) updateData.subcategory_id = data.subcategoryId
 

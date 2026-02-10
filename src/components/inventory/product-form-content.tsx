@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -71,10 +71,6 @@ interface Warehouse {
 
 interface WarehouseProduct {
   warehouseId: string
-  stock: number
-  isOnDiscount: boolean
-  isPromo: boolean
-  discountPrice: number | null
 }
 
 interface ProductFormContentProps {
@@ -87,8 +83,10 @@ const MAX_IMAGES = 4
 
 export function ProductFormContent({ productId }: ProductFormContentProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { setOverride } = useBreadcrumb()
   const isEditMode = Boolean(productId)
+  const preselectedWarehouseId = searchParams.get("warehouse")
 
   // Data state
   const [categories, setCategories] = useState<Category[]>([])
@@ -128,8 +126,6 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
 
   // Form state - Availability (Warehouses)
   const [selectedWarehouses, setSelectedWarehouses] = useState<string[]>([])
-  const [globalStock, setGlobalStock] = useState<number>(0)
-  const [warehouseStocks, setWarehouseStocks] = useState<Record<string, number>>({})
   const [existingWarehouseProducts, setExistingWarehouseProducts] = useState<WarehouseProduct[]>([])
 
   // Submit state
@@ -169,6 +165,14 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           }))
         )
 
+        // Pre-select warehouse from query param (create mode only)
+        if (!productId && preselectedWarehouseId) {
+          const exists = warehousesRes.data.some((w) => w.id === preselectedWarehouseId)
+          if (exists) {
+            setSelectedWarehouses([preselectedWarehouseId])
+          }
+        }
+
         // Load product data if editing
         if (productId) {
           const product = await productService.getById(productId)
@@ -190,45 +194,33 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
               setBarcode(product.barcode || "")
             }
 
+            // Load discount/promo from product
+            setIsOnDiscount(product.isOnDiscount)
+            setIsPromo(product.isPromo)
+            if (product.discountPrice) {
+              setDiscountPrice(product.discountPrice.toString())
+            }
+
             // Load warehouse products
             const { createClient } = await import("@/lib/supabase/client")
             const supabase = createClient()
 
             const { data: warehouseProducts } = await supabase
               .from("warehouse_products")
-              .select("warehouse_id, stock, is_on_discount, is_promo, discount_price")
+              .select("warehouse_id")
               .eq("product_id", productId)
 
             if (warehouseProducts && warehouseProducts.length > 0) {
               const wpData: WarehouseProduct[] = warehouseProducts.map((wp) => ({
                 warehouseId: wp.warehouse_id,
-                stock: wp.stock,
-                isOnDiscount: wp.is_on_discount,
-                isPromo: wp.is_promo,
-                discountPrice: wp.discount_price,
               }))
 
               setExistingWarehouseProducts(wpData)
               setSelectedWarehouses(wpData.map((wp) => wp.warehouseId))
-
-              const stocks: Record<string, number> = {}
-              wpData.forEach((wp) => {
-                stocks[wp.warehouseId] = wp.stock
-              })
-              setWarehouseStocks(stocks)
-
-              // Set global discount/promo from first warehouse product
-              if (wpData.length > 0) {
-                setIsOnDiscount(wpData[0].isOnDiscount)
-                setIsPromo(wpData[0].isPromo)
-                if (wpData[0].discountPrice) {
-                  setDiscountPrice(wpData[0].discountPrice.toString())
-                }
-              }
             }
           } else {
             toast.error("Producto no encontrado")
-            router.push("/admin/inventory")
+            router.push("/admin/stock")
           }
         }
       } catch (err) {
@@ -331,49 +323,18 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
   const toggleWarehouse = (warehouseId: string) => {
     setSelectedWarehouses((prev) => {
       if (prev.includes(warehouseId)) {
-        setWarehouseStocks((stocks) => {
-          const newStocks = { ...stocks }
-          delete newStocks[warehouseId]
-          return newStocks
-        })
         return prev.filter((id) => id !== warehouseId)
       } else {
-        setWarehouseStocks((stocks) => ({
-          ...stocks,
-          [warehouseId]: globalStock,
-        }))
         return [...prev, warehouseId]
       }
-    })
-  }
-
-  const updateWarehouseStock = (warehouseId: string, stock: number) => {
-    setWarehouseStocks((prev) => ({
-      ...prev,
-      [warehouseId]: stock,
-    }))
-  }
-
-  const applyGlobalStock = (stock: number) => {
-    setGlobalStock(stock)
-    setWarehouseStocks((prev) => {
-      const updated = { ...prev }
-      selectedWarehouses.forEach((id) => {
-        updated[id] = stock
-      })
-      return updated
     })
   }
 
   const selectAllWarehouses = () => {
     if (selectedWarehouses.length === warehouses.length) {
       setSelectedWarehouses([])
-      setWarehouseStocks({})
     } else {
       setSelectedWarehouses(warehouses.map((w) => w.id))
-      setWarehouseStocks(
-        warehouses.reduce((acc, w) => ({ ...acc, [w.id]: globalStock }), {})
-      )
     }
   }
 
@@ -393,7 +354,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
     try {
       await productService.delete(productId)
       toast.success("Producto eliminado correctamente")
-      router.push("/admin/inventory")
+      router.push("/admin/stock")
     } catch (err) {
       console.error("Error deleting product:", err)
       toast.error("Error al eliminar el producto")
@@ -436,7 +397,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
       }
 
       if (isEditMode && productId) {
-        // Update product
+        // Update product (including discount/promo)
         await productService.update(productId, {
           name: name.trim(),
           description: description.trim() || null,
@@ -447,6 +408,9 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           sku: hasSkuBarcode && sku.trim() ? sku.trim() : null,
           barcode: hasSkuBarcode && barcode.trim() ? barcode.trim() : null,
           isActive,
+          isOnDiscount,
+          isPromo,
+          discountPrice: discountPrice ? parseFloat(discountPrice) : null,
         })
 
         // Update warehouse products
@@ -460,12 +424,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
         const warehouseProducts = selectedWarehouses.map((warehouseId) => ({
           warehouse_id: warehouseId,
           product_id: productId,
-          stock: warehouseStocks[warehouseId] ?? 0,
-          price: null,
           is_available: true,
-          is_on_discount: isOnDiscount,
-          is_promo: isPromo,
-          discount_price: discountPrice ? parseFloat(discountPrice) : null,
         }))
 
         const { error: warehouseError } = await supabase
@@ -478,7 +437,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
 
         toast.success("Producto actualizado correctamente")
       } else {
-        // Create product
+        // Create product (including discount/promo)
         const { data: product, error: productError } = await supabase
           .from("products")
           .insert({
@@ -491,6 +450,9 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
             sku: hasSkuBarcode && sku.trim() ? sku.trim() : null,
             barcode: hasSkuBarcode && barcode.trim() ? barcode.trim() : null,
             is_active: true,
+            is_on_discount: isOnDiscount,
+            is_promo: isPromo,
+            discount_price: discountPrice ? parseFloat(discountPrice) : null,
           })
           .select()
           .single()
@@ -503,12 +465,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
         const warehouseProducts = selectedWarehouses.map((warehouseId) => ({
           warehouse_id: warehouseId,
           product_id: product.id,
-          stock: warehouseStocks[warehouseId] ?? 0,
-          price: null,
           is_available: true,
-          is_on_discount: isOnDiscount,
-          is_promo: isPromo,
-          discount_price: discountPrice ? parseFloat(discountPrice) : null,
         }))
 
         const { error: warehouseError } = await supabase
@@ -522,7 +479,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
         toast.success("Producto agregado correctamente")
       }
 
-      router.push("/admin/inventory")
+      router.push("/admin/stock")
     } catch (err) {
       console.error("Error saving product:", err)
       toast.error(isEditMode ? "Error al actualizar el producto" : "Error al crear el producto")
@@ -564,7 +521,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/admin/inventory")}
+            onClick={() => router.push("/admin/stock")}
             className="cursor-pointer"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -594,7 +551,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           )}
           <Button
             variant="outline"
-            onClick={() => router.push("/admin/inventory")}
+            onClick={() => router.push("/admin/stock")}
             disabled={isSubmitting || isDeleting}
           >
             Cancelar
@@ -853,7 +810,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Este es el precio base. Puedes personalizarlo por bodegón en el inventario.
+                  Precio del producto en todos los bodegones
                 </p>
               </div>
 
@@ -978,25 +935,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor="globalStock"
-                    className="text-sm text-muted-foreground whitespace-nowrap"
-                  >
-                    Stock inicial para todos:
-                  </Label>
-                  <Input
-                    id="globalStock"
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={globalStock}
-                    onChange={(e) => applyGlobalStock(parseInt(e.target.value) || 0)}
-                    disabled={isSubmitting}
-                    className="w-24 h-8"
-                  />
-                </div>
+              <div className="flex items-center justify-end mb-3">
                 <Button
                   variant="link"
                   size="sm"
@@ -1042,32 +981,6 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                         )}
                       </div>
                       <span className="font-medium flex-1">{warehouse.name}</span>
-                      {isSelected && (
-                        <div className="flex items-center gap-2">
-                          <Label
-                            htmlFor={`stock-${warehouse.id}`}
-                            className="text-sm text-muted-foreground whitespace-nowrap"
-                          >
-                            Stock inicial:
-                          </Label>
-                          <Input
-                            id={`stock-${warehouse.id}`}
-                            type="number"
-                            min={0}
-                            placeholder="0"
-                            value={warehouseStocks[warehouse.id] ?? 0}
-                            onChange={(e) =>
-                              updateWarehouseStock(
-                                warehouse.id,
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            onClick={(e) => e.stopPropagation()}
-                            disabled={isSubmitting}
-                            className="w-24 h-8 bg-white"
-                          />
-                        </div>
-                      )}
                     </div>
                   )
                 })}

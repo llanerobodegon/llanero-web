@@ -71,15 +71,17 @@ export function TeamSwitcher() {
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
-            <DropdownMenuItem
-              onClick={() => setSelectedWarehouse(null)}
-              className="gap-2 p-2 cursor-pointer"
-            >
-              <div className="flex size-6 items-center justify-center rounded-md border">
-                <LayoutGrid className="size-3.5 shrink-0" />
-              </div>
-              Todos los bodegones
-            </DropdownMenuItem>
+            {warehouses.length > 1 && (
+              <DropdownMenuItem
+                onClick={() => setSelectedWarehouse(null)}
+                className="gap-2 p-2 cursor-pointer"
+              >
+                <div className="flex size-6 items-center justify-center rounded-md border">
+                  <LayoutGrid className="size-3.5 shrink-0" />
+                </div>
+                Todos los bodegones
+              </DropdownMenuItem>
+            )}
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Bodegones
             </DropdownMenuLabel>

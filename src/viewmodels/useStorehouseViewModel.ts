@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { productService, Product } from "@/src/services/product.service"
 import { categoryService } from "@/src/services/category.service"
 import { subcategoryService } from "@/src/services/subcategory.service"
-import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 interface PaginationState {
   page: number
@@ -24,8 +23,7 @@ interface Subcategory {
   categoryId: string
 }
 
-export function useInventoryViewModel() {
-  const { selectedWarehouse, warehouses, isLoading: isWarehouseLoading } = useWarehouseContext()
+export function useStorehouseViewModel() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
@@ -66,8 +64,6 @@ export function useInventoryViewModel() {
       pageSize: number = 10,
       categoryIds?: string[],
       subcategoryIds?: string[],
-      warehouseId?: string,
-      warehouseIds?: string[],
       search?: string
     ) => {
       setIsLoading(true)
@@ -78,8 +74,6 @@ export function useInventoryViewModel() {
           {
             categoryIds: categoryIds?.length ? categoryIds : undefined,
             subcategoryIds: subcategoryIds?.length ? subcategoryIds : undefined,
-            warehouseId,
-            warehouseIds: warehouseIds?.length ? warehouseIds : undefined,
             search: search || undefined,
           }
         )
@@ -105,24 +99,9 @@ export function useInventoryViewModel() {
     fetchSubcategories()
   }, [fetchCategories, fetchSubcategories])
 
-  // Reset pagination when warehouse changes
   useEffect(() => {
-    setPagination((prev) => ({ ...prev, page: 1 }))
-  }, [selectedWarehouse])
-
-  // Derive warehouse filter: specific warehouse or all user's warehouses
-  const warehouseId = selectedWarehouse?.id
-  const allWarehouseIds = useMemo(
-    () => !selectedWarehouse && warehouses.length > 0
-      ? warehouses.map((w) => w.id)
-      : undefined,
-    [selectedWarehouse, warehouses]
-  )
-
-  useEffect(() => {
-    if (isWarehouseLoading) return
-    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch)
-  }, [selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, isWarehouseLoading, activeSearch])
+    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
+  }, [selectedCategoryIds, selectedSubcategoryIds, activeSearch])
 
   const executeSearch = useCallback(() => {
     setActiveSearch(searchInput)
@@ -135,16 +114,16 @@ export function useInventoryViewModel() {
 
   const setPage = useCallback(
     (page: number) => {
-      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch)
+      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
     },
-    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch]
+    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch]
   )
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch)
+      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
     },
-    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch]
+    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds, activeSearch]
   )
 
   const toggleCategoryFilter = useCallback(
@@ -190,8 +169,8 @@ export function useInventoryViewModel() {
   )
 
   const refresh = useCallback(() => {
-    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch)
-  }, [fetchProducts, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, warehouseId, allWarehouseIds, activeSearch])
+    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
+  }, [fetchProducts, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch])
 
   // Filter subcategories based on selected categories
   const filteredSubcategories = selectedCategoryIds.length > 0

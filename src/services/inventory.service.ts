@@ -12,12 +12,7 @@ const supabase = createClient()
 export interface InventoryItem {
   warehouseId: string
   productId: string
-  stock: number
-  price: number | null
   isAvailable: boolean
-  isOnDiscount: boolean
-  isPromo: boolean
-  discountPrice: number | null
   createdAt: string
   updatedAt: string
   product: {
@@ -27,6 +22,9 @@ export interface InventoryItem {
     sku: string | null
     barcode: string | null
     price: number
+    isOnDiscount: boolean
+    isPromo: boolean
+    discountPrice: number | null
     category: {
       id: string
       name: string
@@ -52,12 +50,7 @@ function mapRowToInventoryItem(row: any): InventoryItem {
   return {
     warehouseId: row.warehouse_id,
     productId: row.product_id,
-    stock: row.stock,
-    price: row.price,
     isAvailable: row.is_available,
-    isOnDiscount: row.is_on_discount,
-    isPromo: row.is_promo,
-    discountPrice: row.discount_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     product: {
@@ -67,6 +60,9 @@ function mapRowToInventoryItem(row: any): InventoryItem {
       sku: product?.sku ?? null,
       barcode: product?.barcode ?? null,
       price: product?.price ?? 0,
+      isOnDiscount: product?.is_on_discount ?? false,
+      isPromo: product?.is_promo ?? false,
+      discountPrice: product?.discount_price ?? null,
       category: product?.categories ?? null,
     },
     warehouse: {
@@ -108,12 +104,7 @@ class InventoryService {
       .select(`
         warehouse_id,
         product_id,
-        stock,
-        price,
         is_available,
-        is_on_discount,
-        is_promo,
-        discount_price,
         created_at,
         updated_at,
         products (
@@ -123,6 +114,9 @@ class InventoryService {
           sku,
           barcode,
           price,
+          is_on_discount,
+          is_promo,
+          discount_price,
           categories (
             id,
             name
@@ -178,12 +172,7 @@ class InventoryService {
       .select(`
         warehouse_id,
         product_id,
-        stock,
-        price,
         is_available,
-        is_on_discount,
-        is_promo,
-        discount_price,
         created_at,
         updated_at,
         products (
@@ -193,6 +182,9 @@ class InventoryService {
           sku,
           barcode,
           price,
+          is_on_discount,
+          is_promo,
+          discount_price,
           categories (
             id,
             name
@@ -223,12 +215,7 @@ class InventoryService {
       .insert({
         warehouse_id: inventoryData.warehouseId,
         product_id: inventoryData.productId,
-        stock: inventoryData.stock ?? 0,
-        price: inventoryData.price ?? null,
         is_available: inventoryData.isAvailable ?? true,
-        is_on_discount: inventoryData.isOnDiscount ?? false,
-        is_promo: inventoryData.isPromo ?? false,
-        discount_price: inventoryData.discountPrice ?? null,
       })
       .select()
       .single()
@@ -250,23 +237,8 @@ class InventoryService {
   ): Promise<InventoryItem> {
     const updateData: Record<string, unknown> = {}
 
-    if (inventoryData.stock !== undefined) {
-      updateData.stock = inventoryData.stock
-    }
-    if (inventoryData.price !== undefined) {
-      updateData.price = inventoryData.price
-    }
     if (inventoryData.isAvailable !== undefined) {
       updateData.is_available = inventoryData.isAvailable
-    }
-    if (inventoryData.isOnDiscount !== undefined) {
-      updateData.is_on_discount = inventoryData.isOnDiscount
-    }
-    if (inventoryData.isPromo !== undefined) {
-      updateData.is_promo = inventoryData.isPromo
-    }
-    if (inventoryData.discountPrice !== undefined) {
-      updateData.discount_price = inventoryData.discountPrice
     }
 
     const { error } = await supabase
@@ -298,13 +270,11 @@ class InventoryService {
     }
   }
 
-  async bulkAddToWarehouses(
-    stock: number = 10
-  ): Promise<{ added: number; skipped: number; errors: number }> {
+  async bulkAddToWarehouses(): Promise<{ added: number; skipped: number; errors: number }> {
     // Get all products
     const { data: products, error: productsError } = await supabase
       .from("products")
-      .select("id, price")
+      .select("id")
 
     if (productsError && productsError.message) {
       console.error("Error fetching products:", productsError)
@@ -339,8 +309,6 @@ class InventoryService {
     const recordsToInsert: {
       warehouse_id: string
       product_id: string
-      stock: number
-      price: number
       is_available: boolean
     }[] = []
 
@@ -351,8 +319,6 @@ class InventoryService {
           recordsToInsert.push({
             warehouse_id: warehouse.id,
             product_id: product.id,
-            stock,
-            price: product.price,
             is_available: true,
           })
         }

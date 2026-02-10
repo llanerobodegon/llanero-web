@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useMemo, useRef, useCallback, useEffect } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import Image from "next/image"
-import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, Store, SearchCheck } from "lucide-react"
+import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -21,12 +20,9 @@ import { getColumns, ProductItem } from "@/src/components/inventory/columns"
 import { InventorySkeleton } from "@/src/components/inventory/inventory-skeleton"
 import { EmptyState } from "@/components/empty-state"
 import {
-  useInventoryViewModel,
-} from "@/src/viewmodels/useInventoryViewModel"
-import { productService, Product } from "@/src/services/product.service"
-import { inventoryService } from "@/src/services/inventory.service"
-import { useWarehouseContext } from "@/src/contexts/warehouse-context"
-import { createClient } from "@/lib/supabase/client"
+  useStorehouseViewModel,
+} from "@/src/viewmodels/useStorehouseViewModel"
+import { productService } from "@/src/services/product.service"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +42,7 @@ import {
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 
-export function InventoryContent() {
+export function StorehouseContent() {
   const router = useRouter()
   const {
     products,
@@ -69,10 +65,7 @@ export function InventoryContent() {
     clearCategoryFilters,
     clearSubcategoryFilters,
     deleteProduct,
-    refresh,
-  } = useInventoryViewModel()
-
-  const { selectedWarehouse } = useWarehouseContext()
+  } = useStorehouseViewModel()
 
   // Export products to CSV
   const handleExportCSV = () => {
@@ -81,11 +74,9 @@ export function InventoryContent() {
     const csvRows = [
       headers.join(","),
       ...products.map((product) => {
-        // Ensure imageUrls is an array of strings
         let imageUrlsArray: string[] = []
         if (Array.isArray(product.imageUrls)) {
           imageUrlsArray = product.imageUrls.map((url) => {
-            // If url is a JSON string array, parse it
             if (typeof url === "string" && url.startsWith("[")) {
               try {
                 const parsed = JSON.parse(url)
@@ -118,7 +109,7 @@ export function InventoryContent() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.setAttribute("href", url)
-    link.setAttribute("download", `productos_${new Date().toISOString().split("T")[0]}.csv`)
+    link.setAttribute("download", `almacen_${new Date().toISOString().split("T")[0]}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -180,14 +171,12 @@ export function InventoryContent() {
         return
       }
 
-      // Skip header row
       const dataRows = lines.slice(1)
 
       for (let i = 0; i < dataRows.length; i++) {
-        const rowNumber = i + 2 // +2 because we skip header and rows are 1-indexed
+        const rowNumber = i + 2
         const values = parseCSVLine(dataRows[i])
 
-        // Expected: Nombre, Descripción, SKU, Código de barras, Precio, Categoría, Subcategoría, Estado, Imágenes
         const [name, description, sku, barcode, priceStr, categoryName, subcategoryName, status, imagesStr] = values
 
         if (!name) {
@@ -200,7 +189,6 @@ export function InventoryContent() {
           continue
         }
 
-        // Find category by name (optional for updates, required for new products)
         let category = null
         if (categoryName) {
           category = categories.find(
@@ -212,7 +200,6 @@ export function InventoryContent() {
           }
         }
 
-        // Find subcategory by name (optional)
         let subcategoryId: string | null = null
         if (subcategoryName && category) {
           const subcategory = subcategories.find(
@@ -225,25 +212,20 @@ export function InventoryContent() {
           }
         }
 
-        // Parse image URLs (separated by | or JSON array format)
         let imageUrls: string[] = []
         if (imagesStr) {
-          // Check if it's a JSON array format
           if (imagesStr.startsWith("[")) {
             try {
               const parsed = JSON.parse(imagesStr)
               imageUrls = Array.isArray(parsed) ? parsed : []
             } catch {
-              // If parsing fails, treat as pipe-separated
               imageUrls = imagesStr.split("|").map((url) => url.trim()).filter((url) => url)
             }
           } else {
-            // Pipe-separated format
             imageUrls = imagesStr.split("|").map((url) => url.trim()).filter((url) => url)
           }
         }
 
-        // Check if product with same SKU exists
         let existingProduct = null
         if (sku) {
           existingProduct = await productService.getBySku(sku)
@@ -251,7 +233,6 @@ export function InventoryContent() {
 
         try {
           if (existingProduct) {
-            // Update existing product - keep existing values if not provided
             await productService.update(existingProduct.id, {
               name,
               description: description || existingProduct.description,
@@ -264,8 +245,6 @@ export function InventoryContent() {
             })
             updatedCount++
           } else {
-            // Create new product
-            // If no category provided, product is created as inactive by default
             const isActive = category
               ? status?.toLowerCase() !== "inactivo"
               : false
@@ -298,7 +277,6 @@ export function InventoryContent() {
       setImportDialogOpen(true)
 
       if (createdCount > 0 || updatedCount > 0) {
-        // Refresh the page to show new/updated products
         setTimeout(() => window.location.reload(), 1500)
       }
     } catch (err) {
@@ -362,219 +340,6 @@ export function InventoryContent() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
   const [statusUpdates, setStatusUpdates] = useState<Record<string, boolean>>({})
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
-
-  // Bulk add to warehouses state
-  const [bulkAddDialogOpen, setBulkAddDialogOpen] = useState(false)
-  const [isBulkAdding, setIsBulkAdding] = useState(false)
-  const [bulkAddResultDialogOpen, setBulkAddResultDialogOpen] = useState(false)
-  const [bulkAddResult, setBulkAddResult] = useState<{ added: number; skipped: number; errors: number } | null>(null)
-
-  // SKU CSV import state (temporary)
-  const [skuCsvModalOpen, setSkuCsvModalOpen] = useState(false)
-  const [isProcessingSkuCsv, setIsProcessingSkuCsv] = useState(false)
-  const [skuCsvResultOpen, setSkuCsvResultOpen] = useState(false)
-  const [skuCsvResult, setSkuCsvResult] = useState<{ updated: number; notFound: string[]; errors: string[] } | null>(null)
-  const [skuCsvDragging, setSkuCsvDragging] = useState(false)
-  const skuCsvInputRef = useRef<HTMLInputElement>(null)
-  const [skuCsvProgress, setSkuCsvProgress] = useState({ current: 0, total: 0, updated: 0, enabled: 0, notFound: 0 })
-  const skuCsvStartTimeRef = useRef<number>(0)
-
-  const processSkuCsvFile = async (file: File) => {
-    if (!selectedWarehouse) return
-    setIsProcessingSkuCsv(true)
-    setSkuCsvProgress({ current: 0, total: 0, updated: 0, enabled: 0, notFound: 0 })
-    skuCsvStartTimeRef.current = Date.now()
-    let updated = 0
-    let enabled = 0
-    let notFoundCount = 0
-    const notFound: string[] = []
-    const errors: string[] = []
-
-    try {
-      const text = await file.text()
-      const lines = text.split(/\r?\n/).filter((line) => line.trim())
-
-      if (lines.length < 2) {
-        toast.error("El archivo CSV está vacío o no tiene datos")
-        setIsProcessingSkuCsv(false)
-        return
-      }
-
-      const dataRows = lines.slice(1)
-      const total = dataRows.length
-      setSkuCsvProgress((prev) => ({ ...prev, total }))
-
-      for (let i = 0; i < dataRows.length; i++) {
-        const rowNumber = i + 2
-        setSkuCsvProgress((prev) => ({ ...prev, current: i + 1 }))
-
-        const values = dataRows[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""))
-        const [sku, priceStr] = values
-
-        if (!sku) {
-          errors.push(`Fila ${rowNumber}: SKU vacío`)
-          continue
-        }
-
-        const price = parseFloat(priceStr)
-        if (isNaN(price) || price < 0) {
-          errors.push(`Fila ${rowNumber}: Precio inválido para SKU "${sku}"`)
-          continue
-        }
-
-        try {
-          const product = await productService.getBySku(sku)
-          if (!product) {
-            notFound.push(sku)
-            notFoundCount++
-            setSkuCsvProgress((prev) => ({ ...prev, notFound: notFoundCount }))
-            continue
-          }
-
-          // Update price
-          await productService.update(product.id, { price })
-          updated++
-          setSkuCsvProgress((prev) => ({ ...prev, updated }))
-
-          // Add to warehouse if not already there
-          const { data: existing } = await supabase
-            .from("warehouse_products")
-            .select("product_id")
-            .eq("warehouse_id", selectedWarehouse.id)
-            .eq("product_id", product.id)
-            .maybeSingle()
-
-          if (!existing) {
-            await supabase
-              .from("warehouse_products")
-              .insert({
-                warehouse_id: selectedWarehouse.id,
-                product_id: product.id,
-                is_available: true,
-              })
-            enabled++
-            setSkuCsvProgress((prev) => ({ ...prev, enabled }))
-          }
-        } catch (err) {
-          errors.push(`Fila ${rowNumber}: Error procesando SKU "${sku}"`)
-        }
-      }
-
-      setSkuCsvResult({ updated, notFound, errors })
-      setIsProcessingSkuCsv(false)
-      setSkuCsvModalOpen(false)
-      setSkuCsvResultOpen(true)
-
-      if (updated > 0) {
-        refresh()
-      }
-    } catch (err) {
-      console.error("Error processing SKU CSV:", err)
-      toast.error("Error al procesar el archivo CSV")
-      setIsProcessingSkuCsv(false)
-      setSkuCsvModalOpen(false)
-    } finally {
-      if (skuCsvInputRef.current) {
-        skuCsvInputRef.current.value = ""
-      }
-    }
-  }
-
-  // Search products modal state
-  const [searchProductsModalOpen, setSearchProductsModalOpen] = useState(false)
-  const [searchProductsQuery, setSearchProductsQuery] = useState("")
-  const [searchProductsResults, setSearchProductsResults] = useState<Product[]>([])
-  const [isSearchingProducts, setIsSearchingProducts] = useState(false)
-  const [warehouseProductIds, setWarehouseProductIds] = useState<Set<string>>(new Set())
-  const [togglingProductId, setTogglingProductId] = useState<string | null>(null)
-
-  const supabase = createClient()
-
-  // Load warehouse product IDs when modal opens
-  const loadWarehouseProductIds = useCallback(async () => {
-    if (!selectedWarehouse) return
-    const { data } = await supabase
-      .from("warehouse_products")
-      .select("product_id")
-      .eq("warehouse_id", selectedWarehouse.id)
-    setWarehouseProductIds(new Set((data || []).map((d) => d.product_id)))
-  }, [selectedWarehouse])
-
-  // Search products for the modal
-  const searchAllProducts = useCallback(async (query: string) => {
-    setIsSearchingProducts(true)
-    try {
-      const result = await productService.getPaginated(
-        { page: 1, pageSize: 20 },
-        { search: query || undefined }
-      )
-      setSearchProductsResults(result.data)
-    } catch (err) {
-      console.error("Error searching products:", err)
-    } finally {
-      setIsSearchingProducts(false)
-    }
-  }, [])
-
-  // Debounced search
-  useEffect(() => {
-    if (!searchProductsModalOpen) return
-    const timer = setTimeout(() => {
-      searchAllProducts(searchProductsQuery)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchProductsQuery, searchProductsModalOpen, searchAllProducts])
-
-  const handleOpenSearchProducts = async () => {
-    setSearchProductsQuery("")
-    setSearchProductsResults([])
-    setSearchProductsModalOpen(true)
-    await loadWarehouseProductIds()
-    searchAllProducts("")
-  }
-
-  const handleToggleProductInWarehouse = async (productId: string) => {
-    if (!selectedWarehouse) return
-    setTogglingProductId(productId)
-    try {
-      const isCurrentlyIn = warehouseProductIds.has(productId)
-      if (isCurrentlyIn) {
-        // Remove from warehouse
-        await supabase
-          .from("warehouse_products")
-          .delete()
-          .eq("warehouse_id", selectedWarehouse.id)
-          .eq("product_id", productId)
-        setWarehouseProductIds((prev) => {
-          const next = new Set(prev)
-          next.delete(productId)
-          return next
-        })
-      } else {
-        // Add to warehouse
-        await supabase
-          .from("warehouse_products")
-          .insert({
-            warehouse_id: selectedWarehouse.id,
-            product_id: productId,
-            is_available: true,
-          })
-        setWarehouseProductIds((prev) => new Set(prev).add(productId))
-      }
-    } catch (err) {
-      console.error("Error toggling product:", err)
-      toast.error("Error al actualizar disponibilidad")
-    } finally {
-      setTogglingProductId(null)
-    }
-  }
-
-  const handleCloseSearchProducts = () => {
-    setSearchProductsModalOpen(false)
-    setSearchProductsQuery("")
-    setSearchProductsResults([])
-    refresh()
-  }
 
   // Map Product to ProductItem for table
   const tableData: ProductItem[] = useMemo(() => {
@@ -657,7 +422,6 @@ export function InventoryContent() {
   }, [products, selectedIds])
 
   const openPriceDialog = () => {
-    // Initialize price updates with current prices
     const initialPrices: Record<string, string> = {}
     selectedProducts.forEach((p) => {
       initialPrices[p.id] = p.price.toString()
@@ -667,7 +431,6 @@ export function InventoryContent() {
   }
 
   const handleBulkPriceUpdate = async () => {
-    // Validate all prices
     for (const [productId, priceStr] of Object.entries(priceUpdates)) {
       const price = parseFloat(priceStr)
       if (isNaN(price) || price < 0) {
@@ -698,7 +461,6 @@ export function InventoryContent() {
 
     if (successCount > 0) {
       toast.success(`Precio actualizado en ${successCount} producto(s)`)
-      // Refresh to show updated prices
       setTimeout(() => window.location.reload(), 500)
     }
     if (errorCount > 0) {
@@ -707,7 +469,6 @@ export function InventoryContent() {
   }
 
   const openStatusDialog = () => {
-    // Initialize status updates with current status
     const initialStatus: Record<string, boolean> = {}
     selectedProducts.forEach((p) => {
       initialStatus[p.id] = p.isActive
@@ -737,26 +498,10 @@ export function InventoryContent() {
 
     if (successCount > 0) {
       toast.success(`Estado actualizado en ${successCount} producto(s)`)
-      // Refresh to show updated status
       setTimeout(() => window.location.reload(), 500)
     }
     if (errorCount > 0) {
       toast.error(`${errorCount} producto(s) no pudieron ser actualizados`)
-    }
-  }
-
-  const handleBulkAddToWarehouses = async () => {
-    setIsBulkAdding(true)
-    try {
-      const result = await inventoryService.bulkAddToWarehouses()
-      setBulkAddResult(result)
-      setBulkAddDialogOpen(false)
-      setBulkAddResultDialogOpen(true)
-    } catch (err) {
-      console.error("Error adding products to warehouses:", err)
-      toast.error("Error al agregar productos a los bodegones")
-    } finally {
-      setIsBulkAdding(false)
     }
   }
 
@@ -765,6 +510,7 @@ export function InventoryContent() {
       getColumns({
         onEdit: handleEditClick,
         onDelete: handleDeleteClick,
+        showStatus: false,
       }),
     []
   )
@@ -772,15 +518,13 @@ export function InventoryContent() {
   if (isLoading) {
     return (
       <div className="flex flex-1 flex-col gap-4 px-4 py-[50px] mx-auto w-full max-w-[1200px]">
-        {/* Title Section */}
         <div className="mb-[25px]">
-          <h1 className="text-2xl font-semibold">Productos</h1>
+          <h1 className="text-2xl font-semibold">Almacén</h1>
           <p className="text-sm text-muted-foreground">
-            Gestiona los productos del catálogo
+            Todos los productos del catálogo
           </p>
         </div>
 
-        {/* Action Section */}
         <div className="flex items-center gap-3">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -818,7 +562,7 @@ export function InventoryContent() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}>
+            <Button onClick={() => router.push("/admin/stock/new")}>
               <Plus />
               Agregar producto
             </Button>
@@ -846,13 +590,13 @@ export function InventoryContent() {
       {/* Title Section */}
       <div className="mb-[25px]">
         <h1 className="text-2xl font-semibold">
-          Productos{" "}
+          Almacén{" "}
           <span className="text-muted-foreground font-normal">
             ({pagination.totalCount})
           </span>
         </h1>
         <p className="text-sm text-muted-foreground">
-          Gestiona los productos del catálogo
+          Todos los productos del catálogo
         </p>
       </div>
 
@@ -1008,26 +752,9 @@ export function InventoryContent() {
                 <Upload className="mr-2 h-4 w-4" />
                 Importar CSV
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setBulkAddDialogOpen(true)}>
-                <Store className="mr-2 h-4 w-4" />
-                Agregar a bodegones
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {selectedWarehouse && (
-            <>
-              <Button variant="outline" onClick={handleOpenSearchProducts}>
-                <SearchCheck className="h-4 w-4" />
-                Buscar productos
-              </Button>
-              <Button variant="outline" onClick={() => setSkuCsvModalOpen(true)}>
-                <FileSpreadsheet className="h-4 w-4" />
-                Importar SKU/Precio
-              </Button>
-            </>
-          )}
-          <Button onClick={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}>
+          <Button onClick={() => router.push("/admin/stock/new")}>
             <Plus />
             Agregar producto
           </Button>
@@ -1074,7 +801,7 @@ export function InventoryContent() {
             title="No hay productos"
             description="Agrega productos al catálogo para comenzar"
             actionLabel="Agregar producto"
-            onAction={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}
+            onAction={() => router.push("/admin/stock/new")}
           />
         </div>
       ) : (
@@ -1282,7 +1009,6 @@ export function InventoryContent() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Drop Zone */}
           {isImporting ? (
             <div className="border-2 border-primary/30 bg-primary/5 rounded-lg p-8 text-center">
               <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-3" />
@@ -1313,7 +1039,6 @@ export function InventoryContent() {
             </div>
           )}
 
-          {/* Format Info */}
           {!isImporting && (
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <p className="text-sm font-medium">Columnas del CSV:</p>
@@ -1394,343 +1119,6 @@ export function InventoryContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Bulk Add to Warehouses Confirmation Dialog */}
-      <AlertDialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Agregar productos a bodegones</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div>
-                <p>Esta acción agregará todos los productos a todos los bodegones activos como disponibles.</p>
-                <p className="mt-2 text-muted-foreground">
-                  Los productos que ya estén en un bodegón no serán duplicados.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isBulkAdding}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBulkAddToWarehouses}
-              disabled={isBulkAdding}
-            >
-              {isBulkAdding ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Agregando...
-                </>
-              ) : (
-                "Agregar"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Bulk Add Result Dialog */}
-      <AlertDialog open={bulkAddResultDialogOpen} onOpenChange={setBulkAddResultDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Resultado</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2">
-                {bulkAddResult && (
-                  <>
-                    {bulkAddResult.added > 0 && (
-                      <p className="text-green-600">
-                        {bulkAddResult.added} producto(s) agregado(s) a bodegones
-                      </p>
-                    )}
-                    {bulkAddResult.skipped > 0 && (
-                      <p className="text-muted-foreground">
-                        {bulkAddResult.skipped} producto(s) omitido(s) (ya existían)
-                      </p>
-                    )}
-                    {bulkAddResult.errors > 0 && (
-                      <p className="text-destructive">
-                        {bulkAddResult.errors} error(es) al agregar
-                      </p>
-                    )}
-                    {bulkAddResult.added === 0 && bulkAddResult.skipped === 0 && bulkAddResult.errors === 0 && (
-                      <p className="text-muted-foreground">
-                        No hay productos o bodegones disponibles
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setBulkAddResultDialogOpen(false)}>
-              Cerrar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* SKU CSV Import (temporary) */}
-      <input
-        ref={skuCsvInputRef}
-        type="file"
-        accept=".csv"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) processSkuCsvFile(file)
-        }}
-        className="hidden"
-      />
-
-      <Dialog open={skuCsvModalOpen} onOpenChange={(open) => !isProcessingSkuCsv && setSkuCsvModalOpen(open)}>
-        <DialogContent className="sm:max-w-lg" showCloseButton={!isProcessingSkuCsv}>
-          <DialogHeader>
-            <DialogTitle>Importar SKU / Precio</DialogTitle>
-            <DialogDescription>
-              Actualiza precios y agrega productos a <strong>{selectedWarehouse?.name}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          {isProcessingSkuCsv ? (() => {
-            const elapsed = (Date.now() - skuCsvStartTimeRef.current) / 1000
-            const avgPerItem = skuCsvProgress.current > 0 ? elapsed / skuCsvProgress.current : 0
-            const remaining = avgPerItem * (skuCsvProgress.total - skuCsvProgress.current)
-            const mins = Math.floor(remaining / 60)
-            const secs = Math.ceil(remaining % 60)
-            const etaText = skuCsvProgress.current > 2
-              ? mins > 0 ? `~${mins}m ${secs}s restantes` : `~${secs}s restantes`
-              : "Calculando..."
-            return (
-            <div className="border-2 border-primary/30 bg-primary/5 rounded-lg p-6 space-y-4">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                <p className="text-sm font-medium">
-                  Producto {skuCsvProgress.current}/{skuCsvProgress.total}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">{etaText}</p>
-                {skuCsvProgress.total > 0 && (
-                  <div className="w-full bg-muted rounded-full h-2 mt-3">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all duration-200"
-                      style={{ width: `${(skuCsvProgress.current / skuCsvProgress.total) * 100}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-background border p-2">
-                  <p className="text-lg font-semibold text-green-600">{skuCsvProgress.updated}</p>
-                  <p className="text-xs text-muted-foreground">Actualizados</p>
-                </div>
-                <div className="rounded-lg bg-background border p-2">
-                  <p className="text-lg font-semibold text-blue-600">{skuCsvProgress.enabled}</p>
-                  <p className="text-xs text-muted-foreground">Habilitados</p>
-                </div>
-                <div className="rounded-lg bg-background border p-2">
-                  <p className="text-lg font-semibold text-amber-600">{skuCsvProgress.notFound}</p>
-                  <p className="text-xs text-muted-foreground">Sin match</p>
-                </div>
-              </div>
-            </div>)
-          })() : (
-            <div
-              onClick={() => skuCsvInputRef.current?.click()}
-              onDrop={(e) => {
-                e.preventDefault()
-                setSkuCsvDragging(false)
-                const file = e.dataTransfer.files?.[0]
-                if (file && file.name.endsWith(".csv")) {
-                  processSkuCsvFile(file)
-                } else {
-                  toast.error("Por favor, selecciona un archivo CSV válido")
-                }
-              }}
-              onDragOver={(e) => { e.preventDefault(); setSkuCsvDragging(true) }}
-              onDragLeave={(e) => { e.preventDefault(); setSkuCsvDragging(false) }}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                skuCsvDragging
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/25 hover:border-primary/50"
-              }`}
-            >
-              <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm font-medium mb-1">
-                Arrastra tu archivo CSV aquí
-              </p>
-              <p className="text-xs text-muted-foreground">
-                o <span className="text-primary">haz clic para seleccionar</span>
-              </p>
-            </div>
-          )}
-
-          {!isProcessingSkuCsv && (
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <p className="text-sm font-medium">Formato esperado:</p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>Columna 1: <strong>SKU</strong> — Columna 2: <strong>Precio</strong></p>
-                <p className="mt-2">Por cada fila se busca el producto por SKU, se actualiza el precio y se agrega como disponible en <strong>{selectedWarehouse?.name}</strong>.</p>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={skuCsvResultOpen} onOpenChange={setSkuCsvResultOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Resultado de importación</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                {skuCsvResult && (
-                  <>
-                    {skuCsvResult.updated > 0 && (
-                      <p className="text-green-600">
-                        {skuCsvResult.updated} producto(s) actualizado(s) y agregado(s) al bodegón
-                      </p>
-                    )}
-                    {skuCsvResult.notFound.length > 0 && (
-                      <div>
-                        <p className="text-amber-600 mb-1">
-                          {skuCsvResult.notFound.length} SKU(s) no encontrado(s):
-                        </p>
-                        <div className="max-h-32 overflow-y-auto text-sm text-muted-foreground">
-                          {skuCsvResult.notFound.map((sku, i) => (
-                            <p key={i}>{sku}</p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {skuCsvResult.errors.length > 0 && (
-                      <div>
-                        <p className="text-destructive mb-1">
-                          {skuCsvResult.errors.length} error(es):
-                        </p>
-                        <div className="max-h-32 overflow-y-auto text-sm text-muted-foreground">
-                          {skuCsvResult.errors.map((err, i) => (
-                            <p key={i}>{err}</p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {skuCsvResult.updated === 0 && skuCsvResult.notFound.length === 0 && skuCsvResult.errors.length === 0 && (
-                      <p className="text-muted-foreground">No se procesaron productos</p>
-                    )}
-                  </>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            {skuCsvResult && skuCsvResult.notFound.length > 0 && (
-              <Button
-                variant="outline"
-                className="mr-auto"
-                onClick={() => {
-                  const csvContent = "SKU\n" + skuCsvResult.notFound.join("\n")
-                  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
-                  const url = URL.createObjectURL(blob)
-                  const link = document.createElement("a")
-                  link.setAttribute("href", url)
-                  link.setAttribute("download", `sku_sin_match_${new Date().toISOString().split("T")[0]}.csv`)
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-                  URL.revokeObjectURL(url)
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Descargar sin match
-              </Button>
-            )}
-            <AlertDialogAction onClick={() => setSkuCsvResultOpen(false)}>
-              Cerrar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Search Products Modal */}
-      <Dialog open={searchProductsModalOpen} onOpenChange={handleCloseSearchProducts}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <SearchCheck className="h-5 w-5" />
-              Buscar productos
-            </DialogTitle>
-            <DialogDescription>
-              Activa o desactiva productos en <strong>{selectedWarehouse?.name}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre..."
-              value={searchProductsQuery}
-              onChange={(e) => setSearchProductsQuery(e.target.value)}
-              className="pl-9"
-              autoFocus
-            />
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {isSearchingProducts ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : searchProductsResults.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Package className="h-12 w-12 text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">
-                  {searchProductsQuery ? "No se encontraron productos" : "No hay productos disponibles"}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {searchProductsResults.map((product) => {
-                  const isInWarehouse = warehouseProductIds.has(product.id)
-                  const isToggling = togglingProductId === product.id
-                  return (
-                    <div
-                      key={product.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                        isInWarehouse ? "border-primary bg-muted/30" : "bg-background"
-                      }`}
-                    >
-                      <div className="relative h-10 w-10 rounded-md overflow-hidden bg-muted flex-shrink-0">
-                        {product.imageUrls?.[0] ? (
-                          <Image
-                            src={product.imageUrls[0]}
-                            alt={product.name}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{product.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {product.category && <span>{product.category.name}</span>}
-                          <span>${product.price.toFixed(2)}</span>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={isInWarehouse}
-                        onCheckedChange={() => handleToggleProductInWarehouse(product.id)}
-                        disabled={isToggling}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
