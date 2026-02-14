@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useEffect, useState } from "react"
-import { Package, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag, LayoutDashboard, Megaphone, Warehouse } from "lucide-react"
+import { Package, Building2, CreditCard, Users, Truck, UserRound, ShoppingBag, LayoutDashboard, Megaphone, FileBarChart } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -79,6 +79,11 @@ const allNavItems = [
     title: "Marketing",
     url: "/admin/marketing",
     icon: Megaphone,
+  },
+  {
+    title: "Reportes",
+    url: "/admin/reports",
+    icon: FileBarChart,
   },
 ]
 

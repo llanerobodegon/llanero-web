@@ -38,20 +38,47 @@ export interface TopProduct {
   imageUrl: string | null
   quantitySold: number
   totalSales: number
+  lastSoldAt: string
+}
+
+export interface DateRangeFilter {
+  from: Date
+  to: Date
+}
+
+export interface WarehouseSales {
+  warehouseId: string
+  warehouseName: string
+  totalSales: number
+  ordersCount: number
+}
+
+export interface ReportOrder {
+  id: string
+  orderNumber: string
+  customerName: string
+  totalUsd: number
+  status: string
+  createdAt: string
 }
 
 class DashboardService {
-  async getStats(warehouseId?: string): Promise<DashboardStats> {
+  async getStats(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DashboardStats> {
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0)
+    const startOfMonth = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfRange = dateRange?.to ?? now
 
-    // Get current month orders
+    // Calculate the duration of the selected range in ms
+    const rangeDuration = endOfRange.getTime() - startOfMonth.getTime()
+    const startOfLastMonth = new Date(startOfMonth.getTime() - rangeDuration - 86400000)
+    const endOfLastMonth = new Date(startOfMonth.getTime() - 1)
+
+    // Get current range orders
     let currentMonthQuery = supabase
       .from("orders")
       .select("id, total_usd, status")
       .gte("created_at", startOfMonth.toISOString())
+      .lte("created_at", endOfRange.toISOString())
       .not("status", "eq", "cancelled")
 
     if (warehouseId) {
@@ -94,12 +121,13 @@ class DashboardService {
       .eq("name", "customer")
       .single()
 
-    // Get current month new customers
+    // Get current range new customers
     const { count: currentCustomers } = await supabase
       .from("users")
       .select("*", { count: "exact", head: true })
       .eq("role_id", customerRole?.id || 0)
       .gte("created_at", startOfMonth.toISOString())
+      .lte("created_at", endOfRange.toISOString())
 
     // Get last month new customers
     const { count: lastCustomers } = await supabase
@@ -202,16 +230,21 @@ class DashboardService {
     })
   }
 
-  async getSalesLast7Days(warehouseId?: string): Promise<DailySales[]> {
+  async getSalesLast7Days(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DailySales[]> {
     const now = new Date()
-    const sevenDaysAgo = new Date(now)
-    sevenDaysAgo.setDate(now.getDate() - 6)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
+    const rangeFrom = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+    const rangeTo = dateRange?.to ?? now
+
+    const startDate = new Date(rangeFrom)
+    startDate.setHours(0, 0, 0, 0)
+    const endDate = new Date(rangeTo)
+    endDate.setHours(23, 59, 59, 999)
 
     let query = supabase
       .from("orders")
       .select("total_usd, created_at")
-      .gte("created_at", sevenDaysAgo.toISOString())
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString())
       .not("status", "eq", "cancelled")
 
     if (warehouseId) {
@@ -221,23 +254,23 @@ class DashboardService {
     const { data, error } = await query
 
     if (error) {
-      console.error("Error fetching sales last 7 days:", error)
+      console.error("Error fetching sales:", error)
       return []
     }
 
-    // Initialize all 7 days with 0 sales
+    // Build day entries for the range
     const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
     const salesByDay: DailySales[] = []
 
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(now.getDate() - i)
-      date.setHours(0, 0, 0, 0)
+    const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / 86400000)
+    for (let i = 0; i <= diffDays; i++) {
+      const date = new Date(startDate)
+      date.setDate(startDate.getDate() + i)
 
       const dateStr = date.toISOString().split("T")[0]
       salesByDay.push({
         date: dateStr,
-        dayName: dayNames[date.getDay()],
+        dayName: `${dayNames[date.getDay()]} ${date.getDate()}`,
         sales: 0,
         orders: 0,
       })
@@ -256,11 +289,15 @@ class DashboardService {
     return salesByDay
   }
 
-  async getTopProducts(limit: number = 5, warehouseId?: string): Promise<TopProduct[]> {
+  async getTopProducts(limit: number = 5, warehouseId?: string, dateRange?: DateRangeFilter): Promise<TopProduct[]> {
     const now = new Date()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfMonth = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endOfRange = dateRange?.to ?? now
 
-    // Get all order items from this month with product info
+    const endDate = new Date(endOfRange)
+    endDate.setHours(23, 59, 59, 999)
+
+    // Get all order items from the range with product info
     let query = supabase
       .from("order_items")
       .select(`
@@ -276,6 +313,7 @@ class DashboardService {
         )
       `)
       .gte("orders.created_at", startOfMonth.toISOString())
+      .lte("orders.created_at", endDate.toISOString())
       .not("orders.status", "eq", "cancelled")
 
     if (warehouseId) {
@@ -297,9 +335,14 @@ class DashboardService {
       const productId = item.product_id
       const existing = productMap.get(productId)
 
+      const orderCreatedAt = item.orders?.created_at || ""
+
       if (existing) {
         existing.quantitySold += item.quantity || 0
         existing.totalSales += parseFloat(item.total_usd || 0)
+        if (orderCreatedAt > existing.lastSoldAt) {
+          existing.lastSoldAt = orderCreatedAt
+        }
       } else {
         productMap.set(productId, {
           id: productId,
@@ -307,16 +350,120 @@ class DashboardService {
           imageUrl: item.product_image_url,
           quantitySold: item.quantity || 0,
           totalSales: parseFloat(item.total_usd || 0),
+          lastSoldAt: orderCreatedAt,
         })
       }
     })
 
-    // Sort by quantity sold and return top N
+    // Sort by quantity sold and return top N (0 = no limit)
     const sortedProducts = Array.from(productMap.values())
       .sort((a, b) => b.quantitySold - a.quantitySold)
-      .slice(0, limit)
 
-    return sortedProducts
+    return limit > 0 ? sortedProducts.slice(0, limit) : sortedProducts
+  }
+
+  async getSalesByWarehouse(dateRange?: DateRangeFilter): Promise<WarehouseSales[]> {
+    const now = new Date()
+    const startDate = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endDate = dateRange?.to ?? now
+
+    const end = new Date(endDate)
+    end.setHours(23, 59, 59, 999)
+
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        warehouse_id,
+        total_usd,
+        warehouses!inner (
+          name
+        )
+      `)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", end.toISOString())
+      .not("status", "eq", "cancelled")
+
+    if (error) {
+      console.error("Error fetching sales by warehouse:", error)
+      return []
+    }
+
+    const warehouseMap = new Map<string, WarehouseSales>()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(data || []).forEach((order: any) => {
+      const wId = order.warehouse_id
+      const existing = warehouseMap.get(wId)
+
+      if (existing) {
+        existing.totalSales += parseFloat(order.total_usd || 0)
+        existing.ordersCount += 1
+      } else {
+        warehouseMap.set(wId, {
+          warehouseId: wId,
+          warehouseName: order.warehouses?.name || "Sin bodegón",
+          totalSales: parseFloat(order.total_usd || 0),
+          ordersCount: 1,
+        })
+      }
+    })
+
+    return Array.from(warehouseMap.values()).sort(
+      (a, b) => b.totalSales - a.totalSales
+    )
+  }
+
+  async getOrders(warehouseId?: string, dateRange?: DateRangeFilter): Promise<ReportOrder[]> {
+    const now = new Date()
+    const startDate = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endDate = dateRange?.to ?? now
+
+    const end = new Date(endDate)
+    end.setHours(23, 59, 59, 999)
+
+    let query = supabase
+      .from("orders")
+      .select(`
+        id,
+        order_number,
+        total_usd,
+        status,
+        created_at,
+        users!orders_user_id_fkey (
+          first_name,
+          last_name,
+          email
+        )
+      `)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", end.toISOString())
+      .order("created_at", { ascending: false })
+
+    if (warehouseId) {
+      query = query.eq("warehouse_id", warehouseId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching orders:", error)
+      return []
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data || []).map((row: any) => {
+      const user = row.users as { first_name: string; last_name: string; email: string } | null
+      return {
+        id: row.id,
+        orderNumber: row.order_number,
+        customerName: user
+          ? `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email
+          : "Cliente",
+        totalUsd: parseFloat(row.total_usd || 0),
+        status: row.status,
+        createdAt: row.created_at,
+      }
+    })
   }
 }
 
