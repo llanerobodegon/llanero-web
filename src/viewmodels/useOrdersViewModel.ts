@@ -38,12 +38,13 @@ interface UseOrdersViewModelReturn {
   selectOrder: (id: string) => Promise<void>
   clearSelectedOrder: () => void
   updateOrder: (id: string, data: UpdateOrderData) => Promise<Order>
+  deleteOrder: (id: string) => Promise<void>
   refresh: () => Promise<void>
   onNewOrder: (callback: (orderNumber: string) => void) => void
 }
 
 export function useOrdersViewModel(): UseOrdersViewModelReturn {
-  const { selectedWarehouse } = useWarehouseContext()
+  const { selectedWarehouse, isLoading: isWarehouseLoading } = useWarehouseContext()
   const [orders, setOrders] = useState<OrderListItem[]>([])
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [deliveryMembers, setDeliveryMembers] = useState<{ id: string; name: string }[]>([])
@@ -99,8 +100,9 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
   }, [selectedWarehouse])
 
   useEffect(() => {
+    if (isWarehouseLoading) return
     fetchOrders()
-  }, [fetchOrders])
+  }, [fetchOrders, isWarehouseLoading])
 
   useEffect(() => {
     fetchDeliveryMembers()
@@ -206,6 +208,15 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
     [fetchOrders]
   )
 
+  const deleteOrder = useCallback(
+    async (id: string): Promise<void> => {
+      await ordersService.delete(id)
+      setSelectedOrder(null)
+      await fetchOrders()
+    },
+    [fetchOrders]
+  )
+
   const handleSetPage = useCallback((newPage: number) => {
     setPage(newPage)
   }, [])
@@ -240,6 +251,7 @@ export function useOrdersViewModel(): UseOrdersViewModelReturn {
     selectOrder,
     clearSelectedOrder,
     updateOrder,
+    deleteOrder,
     refresh: fetchOrders,
     onNewOrder: registerNewOrderCallback,
   }

@@ -88,6 +88,7 @@ export interface OrderListItem {
   orderNumber: string
   customerName: string
   customerEmail: string
+  warehouseName: string
   totalUsd: number
   totalBs: number
   status: OrderStatus
@@ -106,11 +107,13 @@ export interface UpdateOrderData {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRowToOrderListItem(row: any): OrderListItem {
   const customer = row.users
+  const warehouse = row.warehouses
   return {
     id: row.id,
     orderNumber: row.order_number,
     customerName: customer ? `${customer.first_name || ""} ${customer.last_name || ""}`.trim() || customer.email : "Sin cliente",
     customerEmail: customer?.email || "",
+    warehouseName: warehouse?.name || "",
     totalUsd: parseFloat(row.total_usd),
     totalBs: parseFloat(row.total_bs),
     status: row.status,
@@ -257,6 +260,9 @@ class OrdersService {
           first_name,
           last_name,
           email
+        ),
+        warehouses (
+          name
         )
       `)
       .order("created_at", { ascending: false })
@@ -417,6 +423,18 @@ class OrdersService {
     const order = await this.getById(id)
     if (!order) throw new Error("Failed to retrieve updated order")
     return order
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      console.error("Error deleting order:", error)
+      throw new Error("Failed to delete order")
+    }
   }
 
   async getDeliveryMembers(): Promise<{ id: string; name: string }[]> {

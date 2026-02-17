@@ -17,6 +17,8 @@ import {
   FileText,
   ImageIcon,
   Settings,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -41,6 +43,17 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   Order,
   OrderStatus,
   PaymentStatus,
@@ -62,6 +75,7 @@ interface OrderDetailDrawerProps {
   deliveryMembers: { id: string; name: string }[]
   onClose: () => void
   onUpdate: (id: string, data: UpdateOrderData) => Promise<Order>
+  onDelete: (id: string) => Promise<void>
 }
 
 const ORDER_STATUSES: OrderStatus[] = [
@@ -81,8 +95,11 @@ export function OrderDetailDrawer({
   deliveryMembers,
   onClose,
   onUpdate,
+  onDelete,
 }: OrderDetailDrawerProps) {
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [activeTab, setActiveTab] = useState("details")
   const [status, setStatus] = useState<OrderStatus | "">("")
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | "">("")
   const [deliveryPersonId, setDeliveryPersonId] = useState<string>("")
@@ -135,11 +152,28 @@ export function OrderDetailDrawer({
     }
   }
 
+  const handleDelete = async () => {
+    if (!order) return
+
+    setIsDeleting(true)
+    try {
+      await onDelete(order.id)
+      toast.success("Pedido eliminado correctamente")
+      handleClose()
+    } catch (err) {
+      console.error("Error deleting order:", err)
+      toast.error("Error al eliminar el pedido")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const handleClose = () => {
     setStatus("")
     setPaymentStatus("")
     setDeliveryPersonId("")
     setAdminNotes("")
+    setActiveTab("details")
     onClose()
   }
 
@@ -177,9 +211,9 @@ export function OrderDetailDrawer({
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : order ? (
-          <Tabs defaultValue="details" className="flex-1 flex flex-col overflow-hidden">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
             <div className="px-6 pt-4">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details" className="gap-2 cursor-pointer">
                   <FileText className="h-4 w-4" />
                   Detalles
@@ -187,6 +221,10 @@ export function OrderDetailDrawer({
                 <TabsTrigger value="manage" className="gap-2 cursor-pointer">
                   <Settings className="h-4 w-4" />
                   Gestionar
+                </TabsTrigger>
+                <TabsTrigger value="danger" className="gap-2 cursor-pointer text-destructive data-[state=active]:text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  Peligro
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -500,35 +538,97 @@ export function OrderDetailDrawer({
                 </div>
               </ScrollArea>
             </TabsContent>
+
+            <TabsContent value="danger" className="flex-1 overflow-hidden m-0">
+              <ScrollArea className="h-full">
+                <div className="px-6 py-4 space-y-6">
+                  <div className="rounded-lg border border-destructive/50 p-4 space-y-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        Zona de Peligro
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        Las acciones en esta sección son irreversibles. Procede con precaución.
+                      </p>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">Eliminar pedido</p>
+                        <p className="text-xs text-muted-foreground">
+                          Se eliminará permanentemente el pedido {order.orderNumber} y todos sus datos asociados.
+                        </p>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" disabled={isDeleting}>
+                            {isDeleting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Eliminar
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              ¿Eliminar pedido {order.orderNumber}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acción no se puede deshacer. Se eliminará permanentemente el pedido y todos sus datos asociados del sistema.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleDelete}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Eliminar pedido
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </TabsContent>
           </Tabs>
         ) : null}
 
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex gap-3 w-full">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handleClose}
-              disabled={isSaving}
-            >
-              Cerrar
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={handleSave}
-              disabled={isSaving || !order}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Guardar Cambios"
-              )}
-            </Button>
-          </div>
-        </SheetFooter>
+        {activeTab !== "danger" && (
+          <SheetFooter className="border-t px-6 py-4">
+            <div className="flex gap-3 w-full">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleClose}
+                disabled={isSaving}
+              >
+                Cerrar
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleSave}
+                disabled={isSaving || !order}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar Cambios"
+                )}
+              </Button>
+            </div>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   )

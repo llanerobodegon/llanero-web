@@ -26,6 +26,26 @@ CREATE TABLE public.categories (
   CONSTRAINT categories_pkey PRIMARY KEY (id),
   CONSTRAINT categories_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.notification_reads (
+  notification_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  read_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT notification_reads_pkey PRIMARY KEY (notification_id, user_id),
+  CONSTRAINT notification_reads_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES public.notifications(id),
+  CONSTRAINT notification_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  type character varying NOT NULL CHECK (type::text = ANY (ARRAY['order_created'::character varying, 'order_updated'::character varying]::text[])),
+  title character varying NOT NULL,
+  description text,
+  reference_id uuid,
+  warehouse_id uuid,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES public.warehouses(id)
+);
 CREATE TABLE public.order_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   order_id uuid NOT NULL,

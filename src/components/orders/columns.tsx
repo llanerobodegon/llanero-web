@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Eye } from "lucide-react"
+import { Eye, Store } from "lucide-react"
 import {
   OrderListItem,
   getStatusLabel,
@@ -14,9 +14,10 @@ import {
 
 interface ColumnsProps {
   onView: (order: OrderListItem) => void
+  showWarehouse?: boolean
 }
 
-export function getColumns({ onView }: ColumnsProps): ColumnDef<OrderListItem>[] {
+export function getColumns({ onView, showWarehouse }: ColumnsProps): ColumnDef<OrderListItem>[] {
   return [
     {
       accessorKey: "orderNumber",
@@ -39,6 +40,22 @@ export function getColumns({ onView }: ColumnsProps): ColumnDef<OrderListItem>[]
         )
       },
     },
+    ...(showWarehouse
+      ? [
+          {
+            accessorKey: "warehouseName",
+            header: "Bodegón",
+            cell: ({ row }: { row: { original: OrderListItem } }) => {
+              return (
+                <div className="flex items-center gap-2">
+                  <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{row.original.warehouseName}</span>
+                </div>
+              )
+            },
+          } satisfies ColumnDef<OrderListItem>,
+        ]
+      : []),
     {
       accessorKey: "totalUsd",
       header: "Total",
