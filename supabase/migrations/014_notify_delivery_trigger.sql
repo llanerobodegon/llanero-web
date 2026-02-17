@@ -3,10 +3,10 @@
 
 -- Note: pg_net and supabase_vault are pre-installed in Supabase, no need to create them.
 
--- Store secrets in Vault (run these manually in the SQL editor after this migration):
+-- Store secrets in Vault (run manually in SQL editor, replace <YOUR_SERVICE_ROLE_KEY>):
 --
 --   SELECT vault.create_secret(
---     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlampsYnhndGxwcXVrdWh1c210Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDI3MTk0MCwiZXhwIjoyMDc5ODQ3OTQwfQ.49Uw7xRDokhMu0sBuPxVC7xDsr8UBS7n4GV5KDj8sa8',
+--     '<YOUR_SERVICE_ROLE_KEY>',
 --     'service_role_key'
 --   );
 
