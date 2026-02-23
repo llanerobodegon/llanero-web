@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { productService, Product } from "@/src/services/product.service"
+import { inventoryService } from "@/src/services/inventory.service"
 import { categoryService } from "@/src/services/category.service"
 import { subcategoryService } from "@/src/services/subcategory.service"
 import { useWarehouseContext } from "@/src/contexts/warehouse-context"
@@ -178,8 +179,8 @@ export function useInventoryViewModel() {
   }, [])
 
   const deleteProduct = useCallback(
-    async (productId: string) => {
-      await productService.delete(productId)
+    async (warehouseId: string, productId: string) => {
+      await inventoryService.delete(warehouseId, productId)
       setProducts((prev) => prev.filter((item) => item.id !== productId))
       setPagination((prev) => ({
         ...prev,

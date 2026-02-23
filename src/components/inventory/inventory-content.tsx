@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Image from "next/image"
-import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, Store, SearchCheck } from "lucide-react"
+import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, Store, SearchCheck, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -72,7 +72,7 @@ export function InventoryContent() {
     refresh,
   } = useInventoryViewModel()
 
-  const { selectedWarehouse } = useWarehouseContext()
+  const { selectedWarehouse, warehouses } = useWarehouseContext()
 
   // Export products to CSV
   const handleExportCSV = () => {
@@ -352,6 +352,9 @@ export function InventoryContent() {
   const [itemToDelete, setItemToDelete] = useState<ProductItem | null>(null)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [deleteTargetWarehouseIds, setDeleteTargetWarehouseIds] = useState<string[]>([])
+  const [deleteAvailableWarehouses, setDeleteAvailableWarehouses] = useState<Map<string, number>>(new Map()) // warehouseId -> product count
+  const [isLoadingDeleteWarehouses, setIsLoadingDeleteWarehouses] = useState(false)
 
   // Price update dialog state
   const [priceDialogOpen, setPriceDialogOpen] = useState(false)
@@ -480,6 +483,11 @@ export function InventoryContent() {
     }
   }
 
+  // Add product options modal state
+  const [addProductModalOpen, setAddProductModalOpen] = useState(false)
+  const [addProductStep, setAddProductStep] = useState<"options" | "select-warehouse">("options")
+  const [searchTargetWarehouseIds, setSearchTargetWarehouseIds] = useState<string[]>([])
+
   // Search products modal state
   const [searchProductsModalOpen, setSearchProductsModalOpen] = useState(false)
   const [searchProductsQuery, setSearchProductsQuery] = useState("")
@@ -490,15 +498,36 @@ export function InventoryContent() {
 
   const supabase = createClient()
 
+  // Resolve the active warehouse IDs for the search modal
+  const activeWarehouseIds = selectedWarehouse ? [selectedWarehouse.id] : searchTargetWarehouseIds
+
   // Load warehouse product IDs when modal opens
-  const loadWarehouseProductIds = useCallback(async () => {
-    if (!selectedWarehouse) return
-    const { data } = await supabase
-      .from("warehouse_products")
-      .select("product_id")
-      .eq("warehouse_id", selectedWarehouse.id)
-    setWarehouseProductIds(new Set((data || []).map((d) => d.product_id)))
-  }, [selectedWarehouse])
+  // A product shows as "active" only if it's in ALL selected warehouses
+  const loadWarehouseProductIds = useCallback(async (warehouseIds?: string[]) => {
+    const wIds = warehouseIds ?? activeWarehouseIds
+    if (!wIds.length) return
+
+    // Load product IDs for each warehouse
+    const results = await Promise.all(
+      wIds.map(async (wId) => {
+        const { data } = await supabase
+          .from("warehouse_products")
+          .select("product_id")
+          .eq("warehouse_id", wId)
+        return new Set((data || []).map((d) => d.product_id))
+      })
+    )
+
+    // Intersect: product is "active" if it's in ALL selected warehouses
+    if (results.length === 1) {
+      setWarehouseProductIds(results[0])
+    } else {
+      const intersection = new Set(
+        [...results[0]].filter((id) => results.every((s) => s.has(id)))
+      )
+      setWarehouseProductIds(intersection)
+    }
+  }, [activeWarehouseIds])
 
   // Search products for the modal
   const searchAllProducts = useCallback(async (query: string) => {
@@ -525,40 +554,45 @@ export function InventoryContent() {
     return () => clearTimeout(timer)
   }, [searchProductsQuery, searchProductsModalOpen, searchAllProducts])
 
-  const handleOpenSearchProducts = async () => {
+  const handleOpenSearchProducts = async (warehouseIds?: string[]) => {
     setSearchProductsQuery("")
     setSearchProductsResults([])
     setSearchProductsModalOpen(true)
-    await loadWarehouseProductIds()
+    await loadWarehouseProductIds(warehouseIds)
     searchAllProducts("")
   }
 
   const handleToggleProductInWarehouse = async (productId: string) => {
-    if (!selectedWarehouse) return
+    if (!activeWarehouseIds.length) return
     setTogglingProductId(productId)
     try {
       const isCurrentlyIn = warehouseProductIds.has(productId)
       if (isCurrentlyIn) {
-        // Remove from warehouse
-        await supabase
-          .from("warehouse_products")
-          .delete()
-          .eq("warehouse_id", selectedWarehouse.id)
-          .eq("product_id", productId)
+        // Remove from all selected warehouses
+        await Promise.all(
+          activeWarehouseIds.map((wId) =>
+            supabase
+              .from("warehouse_products")
+              .delete()
+              .eq("warehouse_id", wId)
+              .eq("product_id", productId)
+          )
+        )
         setWarehouseProductIds((prev) => {
           const next = new Set(prev)
           next.delete(productId)
           return next
         })
       } else {
-        // Add to warehouse
+        // Add to all selected warehouses (upsert to skip existing)
+        const rows = activeWarehouseIds.map((wId) => ({
+          warehouse_id: wId,
+          product_id: productId,
+          is_available: true,
+        }))
         await supabase
           .from("warehouse_products")
-          .insert({
-            warehouse_id: selectedWarehouse.id,
-            product_id: productId,
-            is_available: true,
-          })
+          .upsert(rows, { onConflict: "warehouse_id,product_id" })
         setWarehouseProductIds((prev) => new Set(prev).add(productId))
       }
     } catch (err) {
@@ -573,6 +607,7 @@ export function InventoryContent() {
     setSearchProductsModalOpen(false)
     setSearchProductsQuery("")
     setSearchProductsResults([])
+    setSearchTargetWarehouseIds([])
     refresh()
   }
 
@@ -595,36 +630,71 @@ export function InventoryContent() {
     router.push(`/admin/stock/${item.id}/edit`)
   }
 
+  // Load which warehouses have the given products
+  const loadDeleteWarehouses = async (productIds: string[]) => {
+    setIsLoadingDeleteWarehouses(true)
+    try {
+      const { data } = await supabase
+        .from("warehouse_products")
+        .select("warehouse_id, product_id")
+        .in("product_id", productIds)
+        .in("warehouse_id", warehouses.map((w) => w.id))
+
+      // Count how many of the selected products each warehouse has
+      const countMap = new Map<string, number>()
+      for (const row of data || []) {
+        countMap.set(row.warehouse_id, (countMap.get(row.warehouse_id) || 0) + 1)
+      }
+      setDeleteAvailableWarehouses(countMap)
+    } catch (err) {
+      console.error("Error loading warehouse availability:", err)
+    } finally {
+      setIsLoadingDeleteWarehouses(false)
+    }
+  }
+
   const handleDeleteClick = (item: ProductItem) => {
     setItemToDelete(item)
+    setDeleteTargetWarehouseIds([])
     setDeleteDialogOpen(true)
+    if (!selectedWarehouse) {
+      loadDeleteWarehouses([item.id])
+    }
   }
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return
 
+    const warehouseIdsToRemove = selectedWarehouse
+      ? [selectedWarehouse.id]
+      : deleteTargetWarehouseIds
+
+    if (warehouseIdsToRemove.length === 0) return
+
     try {
-      await deleteProduct(itemToDelete.id)
-      toast.success("Producto eliminado correctamente")
+      await Promise.all(
+        warehouseIdsToRemove.map((wId) => deleteProduct(wId, itemToDelete.id))
+      )
+      const warehouseNames = warehouseIdsToRemove.map((id) => warehouses.find((w) => w.id === id)?.name).filter(Boolean).join(", ")
+      toast.success(`Producto removido de ${warehouseNames}`)
     } catch (err) {
-      console.error("Error deleting product:", err)
-      const errorMessage = err instanceof Error ? err.message : ""
-      if (errorMessage.startsWith("PRODUCT_IN_ORDERS:")) {
-        const orderCount = errorMessage.split(":")[1]
-        toast.error(
-          `No se puede eliminar este producto porque está asociado a ${orderCount} pedido${Number(orderCount) > 1 ? "s" : ""}`
-        )
-      } else {
-        toast.error("Error al eliminar el producto")
-      }
+      console.error("Error removing product from warehouse:", err)
+      toast.error("Error al remover el producto")
     } finally {
       setDeleteDialogOpen(false)
       setItemToDelete(null)
+      setDeleteTargetWarehouseIds([])
     }
   }
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return
+
+    const warehouseIdsToRemove = selectedWarehouse
+      ? [selectedWarehouse.id]
+      : deleteTargetWarehouseIds
+
+    if (warehouseIdsToRemove.length === 0) return
 
     setIsBulkDeleting(true)
     let successCount = 0
@@ -632,7 +702,9 @@ export function InventoryContent() {
 
     for (const productId of selectedIds) {
       try {
-        await deleteProduct(productId)
+        await Promise.all(
+          warehouseIdsToRemove.map((wId) => deleteProduct(wId, productId))
+        )
         successCount++
       } catch {
         errorCount++
@@ -642,12 +714,14 @@ export function InventoryContent() {
     setIsBulkDeleting(false)
     setBulkDeleteDialogOpen(false)
     setSelectedIds(new Set())
+    setDeleteTargetWarehouseIds([])
 
+    const warehouseNames = warehouseIdsToRemove.map((id) => warehouses.find((w) => w.id === id)?.name).filter(Boolean).join(", ")
     if (successCount > 0) {
-      toast.success(`${successCount} producto(s) eliminado(s)`)
+      toast.success(`${successCount} producto(s) removido(s) de ${warehouseNames}`)
     }
     if (errorCount > 0) {
-      toast.error(`${errorCount} producto(s) no pudieron ser eliminados`)
+      toast.error(`${errorCount} producto(s) no pudieron ser removidos`)
     }
   }
 
@@ -818,7 +892,7 @@ export function InventoryContent() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}>
+            <Button disabled>
               <Plus />
               Agregar producto
             </Button>
@@ -979,14 +1053,13 @@ export function InventoryContent() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={openStatusDialog}
-              >
-                <Power className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setBulkDeleteDialogOpen(true)}
+                onClick={() => {
+                  setDeleteTargetWarehouseIds([])
+                  setBulkDeleteDialogOpen(true)
+                  if (!selectedWarehouse) {
+                    loadDeleteWarehouses([...selectedIds])
+                  }
+                }}
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="h-4 w-4" />
@@ -1016,18 +1089,12 @@ export function InventoryContent() {
             </DropdownMenuContent>
           </DropdownMenu>
           {selectedWarehouse && (
-            <>
-              <Button variant="outline" onClick={handleOpenSearchProducts}>
-                <SearchCheck className="h-4 w-4" />
-                Buscar productos
-              </Button>
-              <Button variant="outline" onClick={() => setSkuCsvModalOpen(true)}>
-                <FileSpreadsheet className="h-4 w-4" />
-                Importar SKU/Precio
-              </Button>
-            </>
+            <Button variant="outline" onClick={() => setSkuCsvModalOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Importar SKU/Precio
+            </Button>
           )}
-          <Button onClick={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}>
+          <Button onClick={() => { setAddProductStep("options"); setAddProductModalOpen(true) }}>
             <Plus />
             Agregar producto
           </Button>
@@ -1072,9 +1139,9 @@ export function InventoryContent() {
           <EmptyState
             icon={Package}
             title="No hay productos"
-            description="Agrega productos al catálogo para comenzar"
+            description={selectedWarehouse ? "Busca y agrega productos a este bodegón" : "Agrega productos al catálogo para comenzar"}
             actionLabel="Agregar producto"
-            onAction={() => router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")}
+            onAction={() => { setAddProductStep("options"); setAddProductModalOpen(true) }}
           />
         </div>
       ) : (
@@ -1221,56 +1288,196 @@ export function InventoryContent() {
       </Dialog>
 
       {/* Bulk Delete Confirmation Dialog */}
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar {selectedIds.size} producto(s)?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará permanentemente los productos seleccionados y los removerá de todos los bodegones donde estén disponibles.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isBulkDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBulkDelete}
-              disabled={isBulkDeleting}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              {isBulkDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Eliminando...
-                </>
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={(open) => {
+        if (!isBulkDeleting) {
+          setBulkDeleteDialogOpen(open)
+          if (!open) setDeleteTargetWarehouseIds([])
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          {!selectedWarehouse && deleteTargetWarehouseIds.length === 0 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Seleccionar bodegones</DialogTitle>
+                <DialogDescription>
+                  ¿De qué bodegones deseas remover los {selectedIds.size} producto(s) seleccionado(s)?
+                </DialogDescription>
+              </DialogHeader>
+              {isLoadingDeleteWarehouses ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
               ) : (
-                "Eliminar"
+                <div className="grid gap-2 py-2">
+                  {warehouses.filter((w) => deleteAvailableWarehouses.has(w.id)).map((w) => {
+                    const isSelected = deleteTargetWarehouseIds.includes(w.id)
+                    const productCount = deleteAvailableWarehouses.get(w.id) || 0
+                    return (
+                      <Button
+                        key={w.id}
+                        variant="outline"
+                        className={`w-full justify-start gap-3 h-auto py-3 px-4 ${isSelected ? "border-primary bg-primary/5" : ""}`}
+                        onClick={() => {
+                          setDeleteTargetWarehouseIds((prev) =>
+                            prev.includes(w.id)
+                              ? prev.filter((id) => id !== w.id)
+                              : [...prev, w.id]
+                          )
+                        }}
+                      >
+                        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <Store className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{w.name}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {productCount} de {selectedIds.size} producto(s)
+                        </span>
+                      </Button>
+                    )
+                  })}
+                  {warehouses.filter((w) => deleteAvailableWarehouses.has(w.id)).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Los productos seleccionados no están disponibles en ningún bodegón
+                    </p>
+                  )}
+                </div>
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setBulkDeleteDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive text-white hover:bg-destructive/90"
+                  disabled={deleteTargetWarehouseIds.length === 0}
+                  onClick={handleBulkDelete}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>¿Remover {selectedIds.size} producto(s)?</DialogTitle>
+                <DialogDescription>
+                  Se removerán los productos seleccionados de <strong>{selectedWarehouse?.name ?? deleteTargetWarehouseIds.map((id) => warehouses.find((w) => w.id === id)?.name).filter(Boolean).join(", ")}</strong>. Los productos seguirán existiendo en el catálogo.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setBulkDeleteDialogOpen(false); setDeleteTargetWarehouseIds([]) }} disabled={isBulkDeleting}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive text-white hover:bg-destructive/90"
+                  onClick={handleBulkDelete}
+                  disabled={isBulkDeleting}
+                >
+                  {isBulkDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    "Eliminar"
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará permanentemente{" "}
-              <strong>{itemToDelete?.name}</strong> y lo removerá de todos los
-              bodegones donde esté disponible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open)
+        if (!open) { setItemToDelete(null); setDeleteTargetWarehouseIds([]) }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          {!selectedWarehouse && deleteTargetWarehouseIds.length === 0 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Seleccionar bodegones</DialogTitle>
+                <DialogDescription>
+                  ¿De qué bodegones deseas remover <strong>{itemToDelete?.name}</strong>?
+                </DialogDescription>
+              </DialogHeader>
+              {isLoadingDeleteWarehouses ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="grid gap-2 py-2">
+                  {warehouses.filter((w) => deleteAvailableWarehouses.has(w.id)).map((w) => {
+                    const isSelected = deleteTargetWarehouseIds.includes(w.id)
+                    return (
+                      <Button
+                        key={w.id}
+                        variant="outline"
+                        className={`w-full justify-start gap-3 h-auto py-3 px-4 ${isSelected ? "border-primary bg-primary/5" : ""}`}
+                        onClick={() => {
+                          setDeleteTargetWarehouseIds((prev) =>
+                            prev.includes(w.id)
+                              ? prev.filter((id) => id !== w.id)
+                              : [...prev, w.id]
+                          )
+                        }}
+                      >
+                        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Store className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{w.name}</span>
+                        </div>
+                      </Button>
+                    )
+                  })}
+                  {warehouses.filter((w) => deleteAvailableWarehouses.has(w.id)).length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Este producto no está disponible en ningún bodegón
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setDeleteDialogOpen(false); setItemToDelete(null) }}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive text-white hover:bg-destructive/90"
+                  disabled={deleteTargetWarehouseIds.length === 0}
+                  onClick={handleConfirmDelete}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>¿Remover producto?</DialogTitle>
+                <DialogDescription>
+                  Se removerá <strong>{itemToDelete?.name}</strong> de <strong>{selectedWarehouse?.name ?? deleteTargetWarehouseIds.map((id) => warehouses.find((w) => w.id === id)?.name).filter(Boolean).join(", ")}</strong>. El producto seguirá existiendo en el catálogo.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setDeleteDialogOpen(false); setItemToDelete(null); setDeleteTargetWarehouseIds([]) }}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive text-white hover:bg-destructive/90"
+                  onClick={handleConfirmDelete}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Import CSV Modal */}
       <Dialog open={importModalOpen} onOpenChange={(open) => !isImporting && setImportModalOpen(open)}>
@@ -1649,6 +1856,120 @@ export function InventoryContent() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Add Product Options Modal */}
+      <Dialog open={addProductModalOpen} onOpenChange={(open) => {
+        setAddProductModalOpen(open)
+        if (!open) {
+          setAddProductStep("options")
+          setSearchTargetWarehouseIds([])
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          {addProductStep === "options" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Agregar producto</DialogTitle>
+                <DialogDescription>
+                  {selectedWarehouse
+                    ? <>¿Cómo deseas agregar el producto a <strong>{selectedWarehouse.name}</strong>?</>
+                    : "¿Cómo deseas agregar el producto?"
+                  }
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-auto py-4 px-4"
+                  onClick={() => {
+                    if (selectedWarehouse) {
+                      setAddProductModalOpen(false)
+                      handleOpenSearchProducts()
+                    } else {
+                      setAddProductStep("select-warehouse")
+                    }
+                  }}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <SearchCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium">Desde el catálogo</p>
+                    <p className="text-xs text-muted-foreground">
+                      Busca un producto existente y agrégalo a un bodegón
+                    </p>
+                  </div>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-3 h-auto py-4 px-4"
+                  onClick={() => {
+                    setAddProductModalOpen(false)
+                    router.push(selectedWarehouse ? `/admin/stock/new?warehouse=${selectedWarehouse.id}` : "/admin/stock/new")
+                  }}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Plus className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium">Nuevo producto</p>
+                    <p className="text-xs text-muted-foreground">
+                      Crea un producto nuevo desde cero
+                    </p>
+                  </div>
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Seleccionar bodegones</DialogTitle>
+                <DialogDescription>
+                  Selecciona los bodegones donde deseas agregar productos del catálogo
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-2 py-2">
+                {warehouses.map((w) => {
+                  const isSelected = searchTargetWarehouseIds.includes(w.id)
+                  return (
+                    <Button
+                      key={w.id}
+                      variant="outline"
+                      className={`w-full justify-start gap-3 h-auto py-3 px-4 ${isSelected ? "border-primary bg-primary/5" : ""}`}
+                      onClick={() => {
+                        setSearchTargetWarehouseIds((prev) =>
+                          prev.includes(w.id)
+                            ? prev.filter((id) => id !== w.id)
+                            : [...prev, w.id]
+                        )
+                      }}
+                    >
+                      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Store className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{w.name}</span>
+                      </div>
+                    </Button>
+                  )
+                })}
+              </div>
+              <Button
+                className="w-full"
+                disabled={searchTargetWarehouseIds.length === 0}
+                onClick={() => {
+                  setAddProductModalOpen(false)
+                  setAddProductStep("options")
+                  handleOpenSearchProducts(searchTargetWarehouseIds)
+                }}
+              >
+                Continuar
+              </Button>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Search Products Modal */}
       <Dialog open={searchProductsModalOpen} onOpenChange={handleCloseSearchProducts}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
@@ -1658,7 +1979,7 @@ export function InventoryContent() {
               Buscar productos
             </DialogTitle>
             <DialogDescription>
-              Activa o desactiva productos en <strong>{selectedWarehouse?.name}</strong>
+              Activa o desactiva productos en <strong>{selectedWarehouse?.name ?? searchTargetWarehouseIds.map((id) => warehouses.find((w) => w.id === id)?.name).filter(Boolean).join(", ")}</strong>
             </DialogDescription>
           </DialogHeader>
 
