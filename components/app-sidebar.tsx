@@ -88,7 +88,7 @@ const allNavItems = [
 ]
 
 // Items hidden for manager role
-const managerHiddenItems = ["Bodegones", "Equipo", "Marketing"]
+const managerHiddenItems = ["Bodegones", "Equipo", "Clientes", "Marketing"]
 // Subitems hidden for manager role
 const managerHiddenSubItems = ["Categorías", "Subcategorías"]
 

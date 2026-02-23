@@ -32,6 +32,7 @@ export interface CreateDeliveryMemberData {
   firstName: string
   lastName: string
   email: string
+  password?: string
   phoneCode?: string | null
   phone?: string | null
   isActive?: boolean
@@ -89,7 +90,7 @@ class DeliveryService {
 
   async getPaginated(
     params: PaginationParams,
-    filters?: { warehouseId?: string }
+    filters?: { warehouseId?: string; warehouseIds?: string[] }
   ): Promise<PaginatedResponse<DeliveryMember>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -107,7 +108,7 @@ class DeliveryService {
       }
     }
 
-    // If filtering by warehouse, get user IDs first
+    // If filtering by warehouse(s), get user IDs first
     let userIdsInWarehouse: string[] | null = null
     if (filters?.warehouseId) {
       const { data: warehouseUsers } = await supabase
@@ -116,6 +117,24 @@ class DeliveryService {
         .eq("warehouse_id", filters.warehouseId)
 
       userIdsInWarehouse = (warehouseUsers || []).map((wu) => wu.user_id)
+
+      if (userIdsInWarehouse.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          page,
+          pageSize,
+          totalPages: 0,
+        }
+      }
+    } else if (filters?.warehouseIds && filters.warehouseIds.length > 0) {
+      const { data: warehouseUsers } = await supabase
+        .from("warehouse_users")
+        .select("user_id")
+        .in("warehouse_id", filters.warehouseIds)
+
+      // Deduplicate user IDs
+      userIdsInWarehouse = [...new Set((warehouseUsers || []).map((wu) => wu.user_id))]
 
       if (userIdsInWarehouse.length === 0) {
         return {
@@ -220,6 +239,7 @@ class DeliveryService {
         firstName: data.firstName,
         lastName: data.lastName,
         email: data.email,
+        password: data.password,
         phoneCode: data.phoneCode,
         phone: data.phone,
         roleId: deliveryRoleId,

@@ -31,7 +31,7 @@ interface UseDeliveryViewModelReturn {
 }
 
 export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
-  const { selectedWarehouse } = useWarehouseContext()
+  const { selectedWarehouse, warehouses: userWarehouses } = useWarehouseContext()
   const [deliveryMembers, setDeliveryMembers] = useState<DeliveryMember[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -46,9 +46,16 @@ export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
       setIsLoading(true)
       setError(null)
 
+      const allWarehouseIds = !selectedWarehouse && userWarehouses.length > 0
+        ? userWarehouses.map((w) => w.id)
+        : undefined
+
       const response = await deliveryService.getPaginated(
         { page, pageSize },
-        { warehouseId: selectedWarehouse?.id }
+        {
+          warehouseId: selectedWarehouse?.id,
+          warehouseIds: allWarehouseIds,
+        }
       )
 
       setDeliveryMembers(response.data)
@@ -60,7 +67,7 @@ export function useDeliveryViewModel(): UseDeliveryViewModelReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [page, pageSize, selectedWarehouse])
+  }, [page, pageSize, selectedWarehouse, userWarehouses])
 
   const fetchWarehouses = useCallback(async () => {
     try {

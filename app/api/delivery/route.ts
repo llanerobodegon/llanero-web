@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
       firstName,
       lastName,
       email,
+      password,
       phoneCode,
       phone,
       deliveryStatus,
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     } = body
 
     // Validate required fields
-    if (!firstName || !lastName || !email) {
+    if (!firstName || !lastName || !email || !password) {
       return NextResponse.json(
         { error: "Faltan campos requeridos" },
         { status: 400 }
@@ -119,21 +120,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Invite user by email - they will receive an email to set their password
-    console.log("Inviting delivery user with email:", email)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // Create user with password and auto-confirm email
+    console.log("Creating delivery user with email:", email)
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          role: "delivery",
-        },
-      }
-    )
+      password,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+        role: "delivery",
+      },
+    })
 
     if (authError) {
-      console.error("Error inviting user:", authError)
+      console.error("Error creating user:", authError)
       console.error("Auth error details:", JSON.stringify(authError, null, 2))
       if (authError.message?.includes("already been registered")) {
         return NextResponse.json(
@@ -142,12 +143,12 @@ export async function POST(request: NextRequest) {
         )
       }
       return NextResponse.json(
-        { error: `Error al invitar el usuario: ${authError.message}` },
+        { error: `Error al crear el usuario: ${authError.message}` },
         { status: 500 }
       )
     }
 
-    console.log("Delivery user invited successfully:", authData.user.id)
+    console.log("Delivery user created successfully:", authData.user.id)
 
     const userId = authData.user.id
 

@@ -416,8 +416,8 @@ class OrdersService {
       .eq("id", id)
 
     if (error) {
-      console.error("Error updating order:", error)
-      throw new Error("Failed to update order")
+      console.error("Error updating order:", error.message, error.code, error.details, error.hint)
+      throw new Error(`Failed to update order: ${error.message}`)
     }
 
     const order = await this.getById(id)
