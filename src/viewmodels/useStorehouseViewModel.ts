@@ -23,16 +23,24 @@ interface Subcategory {
   categoryId: string
 }
 
+export interface ProductStats {
+  total: number
+  active: number
+  inactive: number
+}
+
 export function useStorehouseViewModel() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [stats, setStats] = useState<ProductStats>({ total: 0, active: 0, inactive: 0 })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<string[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [activeSearch, setActiveSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | null>(null)
   const [pagination, setPagination] = useState<PaginationState>({
     page: 1,
     pageSize: 10,
@@ -64,7 +72,8 @@ export function useStorehouseViewModel() {
       pageSize: number = 10,
       categoryIds?: string[],
       subcategoryIds?: string[],
-      search?: string
+      search?: string,
+      isActive?: boolean
     ) => {
       setIsLoading(true)
       setError(null)
@@ -75,6 +84,7 @@ export function useStorehouseViewModel() {
             categoryIds: categoryIds?.length ? categoryIds : undefined,
             subcategoryIds: subcategoryIds?.length ? subcategoryIds : undefined,
             search: search || undefined,
+            isActive,
           }
         )
         setProducts(result.data)
@@ -99,9 +109,21 @@ export function useStorehouseViewModel() {
     fetchSubcategories()
   }, [fetchCategories, fetchSubcategories])
 
+  const fetchStats = useCallback(async () => {
+    try {
+      const result = await productService.getStats()
+      setStats(result)
+    } catch (err) {
+      console.error("Error fetching product stats:", err)
+    }
+  }, [])
+
+  const isActiveFilter = statusFilter === "active" ? true : statusFilter === "inactive" ? false : undefined
+
   useEffect(() => {
-    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
-  }, [selectedCategoryIds, selectedSubcategoryIds, activeSearch])
+    fetchProducts(1, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter)
+    fetchStats()
+  }, [selectedCategoryIds, selectedSubcategoryIds, activeSearch, statusFilter])
 
   const executeSearch = useCallback(() => {
     setActiveSearch(searchInput)
@@ -114,16 +136,16 @@ export function useStorehouseViewModel() {
 
   const setPage = useCallback(
     (page: number) => {
-      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
+      fetchProducts(page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter)
     },
-    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch]
+    [fetchProducts, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter]
   )
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
+      fetchProducts(1, pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter)
     },
-    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds, activeSearch]
+    [fetchProducts, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter]
   )
 
   const toggleCategoryFilter = useCallback(
@@ -169,8 +191,14 @@ export function useStorehouseViewModel() {
   )
 
   const refresh = useCallback(() => {
-    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch)
-  }, [fetchProducts, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch])
+    fetchProducts(pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter)
+    fetchStats()
+  }, [fetchProducts, fetchStats, pagination.page, pagination.pageSize, selectedCategoryIds, selectedSubcategoryIds, activeSearch, isActiveFilter])
+
+  const updateAllStatus = useCallback(async (isActive: boolean) => {
+    await productService.updateAllStatus(isActive)
+    refresh()
+  }, [refresh])
 
   // Filter subcategories based on selected categories
   const filteredSubcategories = selectedCategoryIds.length > 0
@@ -181,6 +209,9 @@ export function useStorehouseViewModel() {
     products,
     categories,
     subcategories: filteredSubcategories,
+    stats,
+    statusFilter,
+    setStatusFilter,
     isLoading,
     error,
     pagination,
@@ -198,6 +229,7 @@ export function useStorehouseViewModel() {
     clearCategoryFilters,
     clearSubcategoryFilters,
     deleteProduct,
+    updateAllStatus,
     refresh,
   }
 }

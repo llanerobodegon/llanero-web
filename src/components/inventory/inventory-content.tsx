@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Image from "next/image"
-import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, Store, SearchCheck, Check } from "lucide-react"
+import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, Store, SearchCheck, Check, PackageCheck, PackageX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -45,6 +45,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { Card, CardContent } from "@/components/ui/card"
 
 export function InventoryContent() {
   const router = useRouter()
@@ -68,6 +69,9 @@ export function InventoryContent() {
     toggleSubcategoryFilter,
     clearCategoryFilters,
     clearSubcategoryFilters,
+    stats,
+    statusFilter,
+    setStatusFilter,
     deleteProduct,
     refresh,
   } = useInventoryViewModel()
@@ -351,6 +355,9 @@ export function InventoryContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<ProductItem | null>(null)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false)
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [deleteAllProgress, setDeleteAllProgress] = useState({ deleted: 0, total: 0 })
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [deleteTargetWarehouseIds, setDeleteTargetWarehouseIds] = useState<string[]>([])
   const [deleteAvailableWarehouses, setDeleteAvailableWarehouses] = useState<Map<string, number>>(new Map()) // warehouseId -> product count
@@ -725,6 +732,28 @@ export function InventoryContent() {
     }
   }
 
+  const handleDeleteAll = async () => {
+    setIsDeletingAll(true)
+    setDeleteAllProgress({ deleted: 0, total: 0 })
+    try {
+      const warehouseId = selectedWarehouse?.id
+      const warehouseIds = !selectedWarehouse && warehouses.length > 0
+        ? warehouses.map((w) => w.id)
+        : undefined
+      await inventoryService.deleteAllByWarehouse(warehouseId, warehouseIds, (deleted, total) => {
+        setDeleteAllProgress({ deleted, total })
+      })
+      toast.success("Todos los productos fueron eliminados del stock")
+      refresh()
+    } catch {
+      toast.error("Error al eliminar los productos")
+    } finally {
+      setIsDeletingAll(false)
+      setDeleteAllDialogOpen(false)
+      setDeleteAllProgress({ deleted: 0, total: 0 })
+    }
+  }
+
   // Get selected products for price update modal
   const selectedProducts = useMemo(() => {
     return products.filter((p) => selectedIds.has(p.id))
@@ -843,67 +872,6 @@ export function InventoryContent() {
     []
   )
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 px-4 py-[50px] mx-auto w-full max-w-[1200px]">
-        {/* Title Section */}
-        <div className="mb-[25px]">
-          <h1 className="text-2xl font-semibold">Productos</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestiona los productos del catálogo
-          </p>
-        </div>
-
-        {/* Action Section */}
-        <div className="flex items-center gap-3">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar producto..."
-              value=""
-              readOnly
-              disabled
-              className="pl-9 w-64"
-            />
-          </div>
-          <Button variant="outline" disabled className="gap-2">
-            <Filter className="h-4 w-4" />
-            Categorías
-          </Button>
-          <Button variant="outline" disabled className="gap-2">
-            <Filter className="h-4 w-4" />
-            Subcategorías
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" disabled>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExportCSV}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleImportClick} disabled={isImporting}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button disabled>
-              <Plus />
-              Agregar producto
-            </Button>
-          </div>
-        </div>
-
-        <InventorySkeleton />
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-4">
@@ -928,6 +896,38 @@ export function InventoryContent() {
         <p className="text-sm text-muted-foreground">
           Gestiona los productos del catálogo
         </p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === "active" ? "bg-muted/60 ring-1 ring-border" : "bg-muted/30 hover:bg-muted/50"}`}
+          onClick={() => setStatusFilter(statusFilter === "active" ? null : "active")}
+        >
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+              <PackageCheck className="h-5 w-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Activos</p>
+              <p className="text-2xl font-bold">{stats.active}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === "inactive" ? "bg-muted/60 ring-1 ring-border" : "bg-muted/30 hover:bg-muted/50"}`}
+          onClick={() => setStatusFilter(statusFilter === "inactive" ? null : "inactive")}
+        >
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10">
+              <PackageX className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Inactivos</p>
+              <p className="text-2xl font-bold">{stats.inactive}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Action Section */}
@@ -1086,6 +1086,14 @@ export function InventoryContent() {
                 <Store className="mr-2 h-4 w-4" />
                 Agregar a bodegones
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setDeleteAllDialogOpen(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                Eliminar todos los productos
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {selectedWarehouse && (
@@ -1110,14 +1118,9 @@ export function InventoryContent() {
         className="hidden"
       />
 
-      {isLoading && activeSearch ? (
-        <div className="rounded-lg border bg-background p-8 text-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">
-            Buscando producto...
-          </p>
-        </div>
-      ) : tableData.length === 0 && (activeSearch || selectedCategoryIds.length > 0 || selectedSubcategoryIds.length > 0) ? (
+      {isLoading ? (
+        <InventorySkeleton />
+      ) : tableData.length === 0 && (activeSearch || selectedCategoryIds.length > 0 || selectedSubcategoryIds.length > 0 || statusFilter !== null) ? (
         <div className="rounded-lg border bg-background p-8 text-center">
           <p className="text-muted-foreground">
             No se encontraron productos con los filtros aplicados
@@ -2052,6 +2055,54 @@ export function InventoryContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete All Products Dialog */}
+      <AlertDialog open={deleteAllDialogOpen} onOpenChange={(open) => !isDeletingAll && setDeleteAllDialogOpen(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar todos los productos</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Se eliminarán todos los productos del stock
+                  {selectedWarehouse ? ` de "${selectedWarehouse.name}"` : " de todos los bodegones"}.
+                  Los productos seguirán existiendo en el catálogo. Esta acción no se puede deshacer.
+                </p>
+                {isDeletingAll && (
+                  <div className="space-y-2">
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full bg-destructive rounded-full transition-all duration-150"
+                        style={{ width: deleteAllProgress.total > 0 ? `${(deleteAllProgress.deleted / deleteAllProgress.total) * 100}%` : "0%" }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground text-right">
+                      {deleteAllProgress.deleted} de {deleteAllProgress.total} eliminados ({deleteAllProgress.total > 0 ? Math.round((deleteAllProgress.deleted / deleteAllProgress.total) * 100) : 0}%)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingAll}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              disabled={isDeletingAll}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {isDeletingAll ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar todos"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

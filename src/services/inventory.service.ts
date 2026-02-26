@@ -270,6 +270,54 @@ class InventoryService {
     }
   }
 
+  async deleteAllByWarehouse(
+    warehouseId?: string,
+    warehouseIds?: string[],
+    onProgress?: (deleted: number, total: number) => void
+  ): Promise<void> {
+    // First count total
+    let countQuery = supabase.from("warehouse_products").select("warehouse_id, product_id", { count: "exact", head: true })
+    if (warehouseId) {
+      countQuery = countQuery.eq("warehouse_id", warehouseId)
+    } else if (warehouseIds && warehouseIds.length > 0) {
+      countQuery = countQuery.in("warehouse_id", warehouseIds)
+    }
+    const { count: total } = await countQuery
+    if (!total || total === 0) return
+
+    onProgress?.(0, total)
+
+    // Fetch IDs and delete in batches
+    const batchSize = 50
+    let deleted = 0
+
+    while (deleted < total) {
+      let fetchQuery = supabase.from("warehouse_products").select("warehouse_id, product_id").limit(batchSize)
+      if (warehouseId) {
+        fetchQuery = fetchQuery.eq("warehouse_id", warehouseId)
+      } else if (warehouseIds && warehouseIds.length > 0) {
+        fetchQuery = fetchQuery.in("warehouse_id", warehouseIds)
+      }
+
+      const { data: rows, error: fetchError } = await fetchQuery
+      if (fetchError || !rows || rows.length === 0) break
+
+      for (const row of rows) {
+        const { error } = await supabase
+          .from("warehouse_products")
+          .delete()
+          .eq("warehouse_id", row.warehouse_id)
+          .eq("product_id", row.product_id)
+
+        if (error) {
+          console.error("Error deleting inventory item:", error)
+        }
+        deleted++
+        onProgress?.(deleted, total)
+      }
+    }
+  }
+
   async bulkAddToWarehouses(): Promise<{ added: number; skipped: number; errors: number }> {
     // Get all products
     const { data: products, error: productsError } = await supabase

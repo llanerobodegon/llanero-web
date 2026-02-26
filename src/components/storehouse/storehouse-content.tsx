@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power } from "lucide-react"
+import { Package, Search, Filter, Plus, MoreVertical, Download, Upload, FileSpreadsheet, Loader2, Trash2, X, DollarSign, Power, PackageCheck, PackageX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
+import { Card, CardContent } from "@/components/ui/card"
 
 export function StorehouseContent() {
   const router = useRouter()
@@ -64,8 +65,29 @@ export function StorehouseContent() {
     toggleSubcategoryFilter,
     clearCategoryFilters,
     clearSubcategoryFilters,
+    stats,
+    statusFilter,
+    setStatusFilter,
     deleteProduct,
+    updateAllStatus,
   } = useStorehouseViewModel()
+
+  const [bulkStatusAction, setBulkStatusAction] = useState<"activate" | "deactivate" | null>(null)
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+
+  const handleBulkStatusConfirm = async () => {
+    if (!bulkStatusAction) return
+    setIsBulkUpdating(true)
+    try {
+      await updateAllStatus(bulkStatusAction === "activate")
+      toast.success(bulkStatusAction === "activate" ? "Todos los productos fueron activados" : "Todos los productos fueron inactivados")
+    } catch {
+      toast.error("Error al actualizar los productos")
+    } finally {
+      setIsBulkUpdating(false)
+      setBulkStatusAction(null)
+    }
+  }
 
   // Export products to CSV
   const handleExportCSV = () => {
@@ -515,65 +537,6 @@ export function StorehouseContent() {
     []
   )
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 px-4 py-[50px] mx-auto w-full max-w-[1200px]">
-        <div className="mb-[25px]">
-          <h1 className="text-2xl font-semibold">Almacén</h1>
-          <p className="text-sm text-muted-foreground">
-            Todos los productos del catálogo
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar producto..."
-              value=""
-              readOnly
-              disabled
-              className="pl-9 w-64"
-            />
-          </div>
-          <Button variant="outline" disabled className="gap-2">
-            <Filter className="h-4 w-4" />
-            Categorías
-          </Button>
-          <Button variant="outline" disabled className="gap-2">
-            <Filter className="h-4 w-4" />
-            Subcategorías
-          </Button>
-          <div className="ml-auto flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" disabled>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExportCSV}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleImportClick} disabled={isImporting}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button onClick={() => router.push("/admin/stock/new")}>
-              <Plus />
-              Agregar producto
-            </Button>
-          </div>
-        </div>
-
-        <InventorySkeleton />
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center p-4">
@@ -598,6 +561,78 @@ export function StorehouseContent() {
         <p className="text-sm text-muted-foreground">
           Todos los productos del catálogo
         </p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card
+          className={`cursor-pointer transition-colors ${statusFilter === null ? "bg-muted/60 ring-1 ring-border" : "bg-muted/30 hover:bg-muted/50"}`}
+          onClick={() => setStatusFilter(null)}
+        >
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`relative cursor-pointer transition-colors ${statusFilter === "active" ? "bg-muted/60 ring-1 ring-border" : "bg-muted/30 hover:bg-muted/50"}`}
+          onClick={() => setStatusFilter(statusFilter === "active" ? null : "active")}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7 text-muted-foreground">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => setBulkStatusAction("deactivate")}>
+                <PackageX className="mr-2 h-4 w-4" />
+                Inactivar todos
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+              <PackageCheck className="h-5 w-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Activos</p>
+              <p className="text-2xl font-bold">{stats.active}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card
+          className={`relative cursor-pointer transition-colors ${statusFilter === "inactive" ? "bg-muted/60 ring-1 ring-border" : "bg-muted/30 hover:bg-muted/50"}`}
+          onClick={() => setStatusFilter(statusFilter === "inactive" ? null : "inactive")}
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-7 w-7 text-muted-foreground">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => setBulkStatusAction("activate")}>
+                <PackageCheck className="mr-2 h-4 w-4" />
+                Activar todos
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <CardContent className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10">
+              <PackageX className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Inactivos</p>
+              <p className="text-2xl font-bold">{stats.inactive}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Action Section */}
@@ -770,14 +805,9 @@ export function StorehouseContent() {
         className="hidden"
       />
 
-      {isLoading && activeSearch ? (
-        <div className="rounded-lg border bg-background p-8 text-center">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">
-            Buscando producto...
-          </p>
-        </div>
-      ) : tableData.length === 0 && (activeSearch || selectedCategoryIds.length > 0 || selectedSubcategoryIds.length > 0) ? (
+      {isLoading ? (
+        <InventorySkeleton />
+      ) : tableData.length === 0 && (activeSearch || selectedCategoryIds.length > 0 || selectedSubcategoryIds.length > 0 || statusFilter !== null) ? (
         <div className="rounded-lg border bg-background p-8 text-center">
           <p className="text-muted-foreground">
             No se encontraron productos con los filtros aplicados
@@ -1115,6 +1145,35 @@ export function StorehouseContent() {
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setImportDialogOpen(false)}>
               Cerrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Status Update Dialog */}
+      <AlertDialog open={bulkStatusAction !== null} onOpenChange={(open) => !isBulkUpdating && !open && setBulkStatusAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkStatusAction === "activate" ? "Activar todos los productos" : "Inactivar todos los productos"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkStatusAction === "activate"
+                ? `Se activarán ${stats.inactive} producto(s) inactivo(s). Esta acción se puede revertir.`
+                : `Se inactivarán ${stats.active} producto(s) activo(s). Esta acción se puede revertir.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkUpdating}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkStatusConfirm} disabled={isBulkUpdating}>
+              {isBulkUpdating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                bulkStatusAction === "activate" ? "Activar todos" : "Inactivar todos"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

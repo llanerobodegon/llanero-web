@@ -95,7 +95,7 @@ function mapRowToProduct(row: any): Product {
 class ProductService {
   async getPaginated(
     params: PaginationParams,
-    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[] }
+    filters?: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[]; isActive?: boolean }
   ): Promise<PaginatedResponse<Product>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
@@ -120,6 +120,9 @@ class ProductService {
     }
     if (filters?.search) {
       countQuery = countQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`)
+    }
+    if (filters?.isActive !== undefined) {
+      countQuery = countQuery.eq("is_active", filters.isActive)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -168,6 +171,9 @@ class ProductService {
     if (filters?.search) {
       dataQuery = dataQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`)
     }
+    if (filters?.isActive !== undefined) {
+      dataQuery = dataQuery.eq("is_active", filters.isActive)
+    }
 
     const { data, error } = await dataQuery
 
@@ -189,39 +195,17 @@ class ProductService {
 
   private async getPaginatedByWarehouse(
     params: PaginationParams,
-    filters: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[] }
+    filters: { search?: string; categoryIds?: string[]; subcategoryIds?: string[]; warehouseId?: string; warehouseIds?: string[]; isActive?: boolean }
   ): Promise<PaginatedResponse<Product>> {
     const { page, pageSize } = params
     const from = (page - 1) * pageSize
     const to = from + pageSize - 1
 
-    // Step 1: Get unique product IDs from warehouse_products
-    let wpQuery = supabase
-      .from("warehouse_products")
-      .select("product_id")
-
-    if (filters.warehouseId) {
-      wpQuery = wpQuery.eq("warehouse_id", filters.warehouseId)
-    } else if (filters.warehouseIds && filters.warehouseIds.length > 0) {
-      wpQuery = wpQuery.in("warehouse_id", filters.warehouseIds)
-    }
-
-    const { data: wpData, error: wpError } = await wpQuery
-
-    if (wpError) {
-      console.error("Error fetching warehouse products:", wpError)
-      throw new Error("Failed to fetch warehouse products")
-    }
-
-    const productIds = [...new Set((wpData || []).map((wp) => wp.product_id))]
-
-    if (productIds.length === 0) {
-      return { data: [], totalCount: 0, page, pageSize, totalPages: 0 }
-    }
-
-    // Step 2: Count and fetch products using warehouse_products as base table
     // Use warehouse_products with inner join to products to bypass RLS on products table
     const selectFields = `
+      warehouse_id,
+      product_id,
+      is_available,
       products!inner (
         id,
         name,
@@ -249,15 +233,21 @@ class ProductService {
       )
     `
 
-    // Count query
+    // Count query - use products join when filtering by isActive
+    const countSelect = filters.isActive !== undefined
+      ? "products!inner(id)"
+      : "product_id"
     let countQuery = supabase
       .from("warehouse_products")
-      .select("product_id", { count: "exact", head: true })
+      .select(countSelect, { count: "exact", head: true })
 
     if (filters.warehouseId) {
       countQuery = countQuery.eq("warehouse_id", filters.warehouseId)
     } else if (filters.warehouseIds && filters.warehouseIds.length > 0) {
       countQuery = countQuery.in("warehouse_id", filters.warehouseIds)
+    }
+    if (filters.isActive !== undefined) {
+      countQuery = countQuery.eq("products.is_active", filters.isActive)
     }
 
     const { count: totalCount, error: countError } = await countQuery
@@ -267,11 +257,14 @@ class ProductService {
       throw new Error("Failed to count products")
     }
 
-    // Data query
+    if (totalCount === 0) {
+      return { data: [], totalCount: 0, page, pageSize, totalPages: 0 }
+    }
+
+    // Data query - filter by warehouse directly, no need for separate product ID fetch
     let dataQuery = supabase
       .from("warehouse_products")
       .select(selectFields)
-      .in("product_id", productIds)
       .range(from, to)
 
     if (filters.warehouseId) {
@@ -289,11 +282,14 @@ class ProductService {
     if (filters.search) {
       dataQuery = dataQuery.or(`name.ilike.%${filters.search}%,sku.ilike.%${filters.search}%`, { referencedTable: "products" })
     }
+    if (filters.isActive !== undefined) {
+      dataQuery = dataQuery.eq("products.is_active", filters.isActive)
+    }
 
     const { data, error } = await dataQuery
 
     if (error) {
-      console.error("Error fetching products by warehouse:", error)
+      console.error("Error fetching products by warehouse:", JSON.stringify(error))
       throw new Error("Failed to fetch products")
     }
 
@@ -532,6 +528,55 @@ class ProductService {
     const product = await this.getById(id)
     if (!product) throw new Error("Failed to fetch updated product")
     return product
+  }
+
+  async updateAllStatus(isActive: boolean): Promise<void> {
+    const { error } = await supabase
+      .from("products")
+      .update({ is_active: isActive })
+      .neq("is_active", isActive)
+
+    if (error) {
+      console.error("Error updating all products status:", error)
+      throw new Error("Failed to update products status")
+    }
+  }
+
+  async getStats(filters?: { warehouseId?: string; warehouseIds?: string[] }): Promise<{ total: number; active: number; inactive: number }> {
+    const hasWarehouseFilter = filters?.warehouseId || (filters?.warehouseIds && filters.warehouseIds.length > 0)
+
+    if (hasWarehouseFilter) {
+      const applyWarehouseFilter = (query: ReturnType<typeof supabase.from>) => {
+        if (filters?.warehouseId) {
+          return query.eq("warehouse_id", filters.warehouseId)
+        } else if (filters?.warehouseIds && filters.warehouseIds.length > 0) {
+          return query.in("warehouse_id", filters.warehouseIds)
+        }
+        return query
+      }
+
+      const [totalResult, activeResult] = await Promise.all([
+        applyWarehouseFilter(
+          supabase.from("warehouse_products").select("product_id", { count: "exact", head: true })
+        ),
+        applyWarehouseFilter(
+          supabase.from("warehouse_products").select("products!inner(id)", { count: "exact", head: true }).eq("products.is_active", true)
+        ),
+      ])
+
+      const total = totalResult.count || 0
+      const active = activeResult.count || 0
+      return { total, active, inactive: total - active }
+    }
+
+    const [totalResult, activeResult] = await Promise.all([
+      supabase.from("products").select("*", { count: "exact", head: true }),
+      supabase.from("products").select("*", { count: "exact", head: true }).eq("is_active", true),
+    ])
+
+    const total = totalResult.count || 0
+    const active = activeResult.count || 0
+    return { total, active, inactive: total - active }
   }
 }
 
