@@ -546,7 +546,8 @@ class ProductService {
     const hasWarehouseFilter = filters?.warehouseId || (filters?.warehouseIds && filters.warehouseIds.length > 0)
 
     if (hasWarehouseFilter) {
-      const applyWarehouseFilter = (query: ReturnType<typeof supabase.from>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const applyWarehouseFilter = (query: any) => {
         if (filters?.warehouseId) {
           return query.eq("warehouse_id", filters.warehouseId)
         } else if (filters?.warehouseIds && filters.warehouseIds.length > 0) {
