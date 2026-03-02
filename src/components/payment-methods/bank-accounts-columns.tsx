@@ -9,67 +9,73 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreVertical, Pencil, Trash2 } from "lucide-react"
-import {
-  PaymentMethod,
-  getPaymentTypeLabel,
-  getAccountDisplay,
-} from "@/src/services/payment-method.service"
+import { MoreVertical, Pencil, Trash2, Check, Minus } from "lucide-react"
+import { BankAccount } from "@/src/services/bank-account.service"
 
 interface ColumnsProps {
-  onEdit: (item: PaymentMethod) => void
-  onDelete: (item: PaymentMethod) => void
+  onEdit: (item: BankAccount) => void
+  onDelete: (item: BankAccount) => void
 }
 
-export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<PaymentMethod>[] {
+export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<BankAccount>[] {
   return [
     {
-      accessorKey: "bank",
-      header: "Banco",
+      accessorKey: "holderName",
+      header: "Titular",
       cell: ({ row }) => {
-        const method = row.original
-        let bankName: string
-
-        // For Zelle, show "Zelle"
-        if (method.type === "zelle") {
-          bankName = "Zelle"
-        }
-        // For Banesco Panama
-        else if (method.type === "banesco_panama") {
-          bankName = "Banesco Panamá"
-        } else {
-          bankName = method.bank || "-"
-        }
-
+        const account = row.original
         return (
           <div className="flex flex-col">
-            <span className="font-medium">{bankName}</span>
-            {method.holderName && (
-              <span className="text-xs text-muted-foreground">{method.holderName}</span>
+            <span className="font-medium">{account.holderName}</span>
+            {account.rif && (
+              <span className="text-xs text-muted-foreground">{account.rif}</span>
             )}
           </div>
         )
       },
     },
     {
-      accessorKey: "type",
-      header: "Tipo",
+      accessorKey: "bank",
+      header: "Banco / Tipo",
       cell: ({ row }) => {
-        const type = row.original.type
-        return (
-          <Badge variant="outline" className="font-normal">
-            {getPaymentTypeLabel(type)}
-          </Badge>
-        )
+        const account = row.original
+        if (account.scope === "internacional") {
+          const label = account.type === "zelle" ? "Zelle" : "Banesco Panam\u00e1"
+          return (
+            <Badge variant="outline" className="font-normal">
+              {label}
+            </Badge>
+          )
+        }
+        return <span className="font-medium">{account.bank}</span>
       },
     },
     {
-      accessorKey: "account",
-      header: "Cuenta",
+      accessorKey: "accountNumber",
+      header: "N\u00b0 de Cuenta / Dato",
+      cell: ({ row }) => (
+        <span className="text-muted-foreground font-mono text-sm">
+          {row.original.accountNumber}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "pagoMovilPhone",
+      header: "Pago M\u00f3vil",
       cell: ({ row }) => {
-        const method = row.original
-        const display = getAccountDisplay(method)
-        return <span className="text-muted-foreground">{display}</span>
+        const account = row.original
+        if (account.scope === "internacional") {
+          return <Minus className="h-4 w-4 text-muted-foreground" />
+        }
+        const phone = account.pagoMovilPhone
+        return phone ? (
+          <div className="flex items-center gap-1.5">
+            <Check className="h-4 w-4 text-green-500" />
+            <span className="text-sm text-muted-foreground">{phone}</span>
+          </div>
+        ) : (
+          <Minus className="h-4 w-4 text-muted-foreground" />
+        )
       },
     },
     {
@@ -93,14 +99,13 @@ export function getColumns({ onEdit, onDelete }: ColumnsProps): ColumnDef<Paymen
       header: () => <div className="text-right"></div>,
       cell: ({ row }) => {
         const item = row.original
-
         return (
           <div className="text-right">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer">
                   <MoreVertical className="h-4 w-4" />
-                  <span className="sr-only">Abrir menú</span>
+                  <span className="sr-only">Abrir menu</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

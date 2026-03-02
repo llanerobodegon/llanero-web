@@ -17,9 +17,10 @@ export function PaymentMethodsSkeleton() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              <TableHead className="text-muted-foreground font-normal">Titular</TableHead>
               <TableHead className="text-muted-foreground font-normal">Banco</TableHead>
-              <TableHead className="text-muted-foreground font-normal">Tipo</TableHead>
-              <TableHead className="text-muted-foreground font-normal">Cuenta</TableHead>
+              <TableHead className="text-muted-foreground font-normal">N° de Cuenta</TableHead>
+              <TableHead className="text-muted-foreground font-normal">Pago Móvil</TableHead>
               <TableHead className="text-muted-foreground font-normal">Estado</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -28,13 +29,19 @@ export function PaymentMethodsSkeleton() {
             {Array.from({ length: 5 }).map((_, index) => (
               <TableRow key={index} className="border-b last:border-0">
                 <TableCell>
-                  <Skeleton className="h-4 w-32" />
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <Skeleton className="h-4 w-24" />
                 </TableCell>
                 <TableCell>
-                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-36" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-20" />
                 </TableCell>
                 <TableCell>
                   <Skeleton className="h-6 w-16 rounded-full" />
