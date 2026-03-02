@@ -5,6 +5,7 @@ import {
   storeSettingsService,
   StoreSettings,
 } from "@/src/services/store-settings.service"
+import { warehouseService } from "@/src/services/warehouse.service"
 
 export type { StoreSettings }
 
@@ -16,6 +17,7 @@ interface UseStoreSettingsViewModelReturn {
   updateStoreOpen: (value: boolean) => Promise<void>
   updateInvoiceMessageEnabled: (value: boolean) => Promise<void>
   updateInvoiceMessage: (value: string) => Promise<void>
+  toggleWarehouseOpen: (warehouseId: string, isOpen: boolean) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -82,6 +84,18 @@ export function useStoreSettingsViewModel(): UseStoreSettingsViewModelReturn {
     }
   }, [])
 
+  const toggleWarehouseOpen = useCallback(async (warehouseId: string, isOpen: boolean) => {
+    try {
+      setIsSaving(true)
+      await warehouseService.update(warehouseId, { isOpen })
+    } catch (err) {
+      console.error("Error toggling warehouse open:", err)
+      throw err
+    } finally {
+      setIsSaving(false)
+    }
+  }, [])
+
   return {
     settings,
     isLoading,
@@ -90,6 +104,7 @@ export function useStoreSettingsViewModel(): UseStoreSettingsViewModelReturn {
     updateStoreOpen,
     updateInvoiceMessageEnabled,
     updateInvoiceMessage,
+    toggleWarehouseOpen,
     refresh: fetchSettings,
   }
 }

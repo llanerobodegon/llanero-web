@@ -20,6 +20,7 @@ function transformWarehouse(row: Record<string, unknown>): Warehouse {
     logoUrl: row.logo_url as string | null,
     deliveryFee: Number(row.delivery_fee) || 0,
     isActive: row.is_active as boolean,
+    isOpen: (row.is_open as boolean) ?? true,
     createdBy: row.created_by as string | null,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
@@ -106,6 +107,7 @@ export const warehouseService = {
     if (warehouseData.logoUrl !== undefined) updateData.logo_url = warehouseData.logoUrl;
     if (warehouseData.deliveryFee !== undefined) updateData.delivery_fee = warehouseData.deliveryFee;
     if (warehouseData.isActive !== undefined) updateData.is_active = warehouseData.isActive;
+    if (warehouseData.isOpen !== undefined) updateData.is_open = warehouseData.isOpen;
 
     const { data, error } = await supabase
       .from("warehouses")

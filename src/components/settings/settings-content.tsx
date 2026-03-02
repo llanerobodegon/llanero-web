@@ -2,14 +2,16 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Store, FileText, Loader2 } from "lucide-react"
+import { Store, FileText, Loader2, Warehouse } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useStoreSettingsViewModel } from "@/src/viewmodels/useStoreSettingsViewModel"
+import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
 function SettingsSkeleton() {
   return (
@@ -46,14 +48,20 @@ export function SettingsContent() {
     updateStoreOpen,
     updateInvoiceMessageEnabled,
     updateInvoiceMessage,
+    toggleWarehouseOpen,
   } = useStoreSettingsViewModel()
+
+  const { warehouses, refreshWarehouses } = useWarehouseContext()
 
   const [invoiceMessageDraft, setInvoiceMessageDraft] = useState<string | null>(null)
   const [isSavingMessage, setIsSavingMessage] = useState(false)
+  const [togglingWarehouseId, setTogglingWarehouseId] = useState<string | null>(null)
 
   const handleStoreOpenChange = async (checked: boolean) => {
     try {
       await updateStoreOpen(checked)
+      await Promise.all(warehouses.map((w) => toggleWarehouseOpen(w.id, checked)))
+      await refreshWarehouses()
       toast.success(checked ? "Tienda abierta" : "Tienda cerrada")
     } catch {
       toast.error("Error al actualizar el estado de la tienda")
@@ -66,6 +74,19 @@ export function SettingsContent() {
       toast.success(checked ? "Mensaje en factura activado" : "Mensaje en factura desactivado")
     } catch {
       toast.error("Error al actualizar la configuración")
+    }
+  }
+
+  const handleWarehouseOpenChange = async (warehouseId: string, checked: boolean) => {
+    try {
+      setTogglingWarehouseId(warehouseId)
+      await toggleWarehouseOpen(warehouseId, checked)
+      await refreshWarehouses()
+      toast.success(checked ? "Bodegón abierto" : "Bodegón cerrado")
+    } catch {
+      toast.error("Error al actualizar el estado del bodegón")
+    } finally {
+      setTogglingWarehouseId(null)
     }
   }
 
@@ -107,100 +128,150 @@ export function SettingsContent() {
       {isLoading ? (
         <SettingsSkeleton />
       ) : settings ? (
-        <div className="space-y-6">
-          {/* Store Status Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Store className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Estado de la Tienda</CardTitle>
-              </div>
-              <CardDescription>
-                Controla si la tienda está disponible para recibir pedidos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="store-open">Tienda Abierta</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {settings.storeOpen
-                      ? "Los clientes pueden realizar pedidos"
-                      : "La tienda está cerrada temporalmente"}
-                  </p>
-                </div>
-                <Switch
-                  id="store-open"
-                  checked={settings.storeOpen}
-                  onCheckedChange={handleStoreOpenChange}
-                  disabled={isSaving}
-                />
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="estados" className="w-full">
+          <TabsList>
+            <TabsTrigger value="estados">
+              <Store className="h-4 w-4 mr-2" />
+              Estados
+            </TabsTrigger>
+            <TabsTrigger value="factura">
+              <FileText className="h-4 w-4 mr-2" />
+              Factura
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Invoice Message Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-base">Mensaje en Factura</CardTitle>
-              </div>
-              <CardDescription>
-                Agrega un mensaje personalizado que aparecerá en las facturas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="invoice-message-enabled">Activar Mensaje</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Mostrar mensaje personalizado en las facturas
-                  </p>
+          <TabsContent value="estados" className="space-y-6 mt-4">
+            {/* Store Status Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Store className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Estado de la Tienda</CardTitle>
                 </div>
-                <Switch
-                  id="invoice-message-enabled"
-                  checked={settings.invoiceMessageEnabled}
-                  onCheckedChange={handleInvoiceMessageEnabledChange}
-                  disabled={isSaving}
-                />
-              </div>
-
-              {settings.invoiceMessageEnabled && (
-                <div className="space-y-2 pt-2">
-                  <Label htmlFor="invoice-message">Mensaje</Label>
-                  <Textarea
-                    id="invoice-message"
-                    placeholder="Escribe el mensaje que aparecerá en las facturas..."
-                    value={invoiceMessageDraft ?? settings.invoiceMessage}
-                    onChange={(e) => setInvoiceMessageDraft(e.target.value)}
-                    rows={3}
+                <CardDescription>
+                  Controla si la tienda está disponible para recibir pedidos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="store-open">Tienda Abierta</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {settings.storeOpen
+                        ? "Los clientes pueden realizar pedidos"
+                        : "La tienda está cerrada temporalmente"}
+                    </p>
+                  </div>
+                  <Switch
+                    id="store-open"
+                    checked={settings.storeOpen}
+                    onCheckedChange={handleStoreOpenChange}
+                    disabled={isSaving}
                   />
-                  {invoiceMessageDraft !== null && invoiceMessageDraft !== settings.invoiceMessage && (
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInvoiceMessageDraft(null)}
-                        disabled={isSavingMessage}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveMessage}
-                        disabled={isSavingMessage}
-                      >
-                        {isSavingMessage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Guardar
-                      </Button>
-                    </div>
-                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+
+            {/* Warehouse Status Card */}
+            {warehouses.length > 1 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Warehouse className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">Estado por Bodegón</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Abre o cierra cada bodegón de forma individual
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {warehouses.map((warehouse) => (
+                    <div key={warehouse.id} className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor={`warehouse-open-${warehouse.id}`}>{warehouse.name}</Label>
+                        <p className="text-sm text-muted-foreground">
+                          {warehouse.isOpen
+                            ? "Abierto - recibiendo pedidos"
+                            : "Cerrado - no recibe pedidos"}
+                        </p>
+                      </div>
+                      <Switch
+                        id={`warehouse-open-${warehouse.id}`}
+                        checked={warehouse.isOpen}
+                        onCheckedChange={(checked) => handleWarehouseOpenChange(warehouse.id, checked)}
+                        disabled={isSaving || togglingWarehouseId === warehouse.id}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="factura" className="space-y-6 mt-4">
+            {/* Invoice Message Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Mensaje en Factura</CardTitle>
+                </div>
+                <CardDescription>
+                  Agrega un mensaje personalizado que aparecerá en las facturas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="invoice-message-enabled">Activar Mensaje</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Mostrar mensaje personalizado en las facturas
+                    </p>
+                  </div>
+                  <Switch
+                    id="invoice-message-enabled"
+                    checked={settings.invoiceMessageEnabled}
+                    onCheckedChange={handleInvoiceMessageEnabledChange}
+                    disabled={isSaving}
+                  />
+                </div>
+
+                {settings.invoiceMessageEnabled && (
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="invoice-message">Mensaje</Label>
+                    <Textarea
+                      id="invoice-message"
+                      placeholder="Escribe el mensaje que aparecerá en las facturas..."
+                      value={invoiceMessageDraft ?? settings.invoiceMessage}
+                      onChange={(e) => setInvoiceMessageDraft(e.target.value)}
+                      rows={3}
+                    />
+                    {invoiceMessageDraft !== null && invoiceMessageDraft !== settings.invoiceMessage && (
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setInvoiceMessageDraft(null)}
+                          disabled={isSavingMessage}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveMessage}
+                          disabled={isSavingMessage}
+                        >
+                          {isSavingMessage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Guardar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       ) : null}
     </div>
   )

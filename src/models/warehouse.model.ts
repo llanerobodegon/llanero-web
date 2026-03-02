@@ -53,6 +53,7 @@ export interface Warehouse {
   logoUrl: string | null;
   deliveryFee: number;
   isActive: boolean;
+  isOpen: boolean;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -153,6 +154,7 @@ export interface UpdateWarehouseData {
   logoUrl?: string | null;
   deliveryFee?: number;
   isActive?: boolean;
+  isOpen?: boolean;
 }
 
 export interface CreateWarehouseProductData {

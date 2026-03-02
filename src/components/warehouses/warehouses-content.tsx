@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 import { DataTable } from "@/src/components/warehouses/data-table"
 import { getColumns } from "@/src/components/warehouses/columns"
 import { WarehousesSkeleton } from "@/src/components/warehouses/warehouses-skeleton"
@@ -75,7 +74,6 @@ export function WarehousesContent() {
   const [name, setName] = useState("")
   const [address, setAddress] = useState("")
   const [phone, setPhone] = useState("")
-  const [isActive, setIsActive] = useState(true)
   const [deliveryFee, setDeliveryFee] = useState("")
 
   // Logo state
@@ -110,7 +108,6 @@ export function WarehousesContent() {
     setAddress("")
     setPhone("")
     setDeliveryFee("")
-    setIsActive(true)
     setLogoFile(null)
     setLogoPreview(null)
     setLogoError(null)
@@ -128,7 +125,6 @@ export function WarehousesContent() {
     setAddress(warehouse.address || "")
     setPhone(warehouse.phone || "")
     setDeliveryFee(warehouse.deliveryFee ? warehouse.deliveryFee.toString() : "")
-    setIsActive(warehouse.isActive)
     setLogoPreview(warehouse.logoUrl)
     setLogoFile(null)
     setLogoError(null)
@@ -227,7 +223,6 @@ export function WarehousesContent() {
         phone: phone.trim() || undefined,
         logoUrl,
         deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
-        isActive,
       }
 
       if (editingWarehouse) {
@@ -573,19 +568,6 @@ export function WarehousesContent() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>Estado</Label>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Bodegón activo
-                  </span>
-                  <Switch
-                    checked={isActive}
-                    onCheckedChange={setIsActive}
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
