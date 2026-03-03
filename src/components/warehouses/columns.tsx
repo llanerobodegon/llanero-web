@@ -72,17 +72,17 @@ export function getColumns({ onEdit, onDelete, onViewProducts }: ColumnsProps): 
       },
     },
     {
-      accessorKey: "isActive",
+      accessorKey: "isOpen",
       header: "Estado",
       cell: ({ row }) => {
-        const isActive = row.original.isActive
+        const isOpen = row.original.isOpen
         return (
           <Badge
             variant="outline"
             className="bg-transparent border-gray-300 text-gray-700 font-normal"
           >
-            <span className={`h-2 w-2 rounded-full ${isActive ? "bg-green-500" : "bg-gray-400"}`} />
-            {isActive ? "Activo" : "Inactivo"}
+            <span className={`h-2 w-2 rounded-full ${isOpen ? "bg-green-500" : "bg-gray-400"}`} />
+            {isOpen ? "Abierto" : "Cerrado"}
           </Badge>
         )
       },

@@ -186,7 +186,7 @@ export function SettingsContent() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {warehouses.map((warehouse) => (
-                    <div key={warehouse.id} className="flex items-center justify-between">
+                    <div key={warehouse.id} className="flex items-center justify-between rounded-lg px-3 py-2 -mx-3 hover:bg-muted/50 transition-colors">
                       <div className="space-y-0.5">
                         <Label htmlFor={`warehouse-open-${warehouse.id}`}>{warehouse.name}</Label>
                         <p className="text-sm text-muted-foreground">

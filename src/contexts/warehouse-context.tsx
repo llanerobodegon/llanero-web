@@ -44,19 +44,18 @@ export function WarehouseProvider({ children }: { children: ReactNode }) {
         data = await warehouseService.getByUserId(user.id)
       }
 
-      const activeWarehouses = data
-        .filter(w => w.isActive)
+      const sortedWarehouses = data
         .sort((a, b) => a.name.localeCompare(b.name))
-      setWarehouses(activeWarehouses)
+      setWarehouses(sortedWarehouses)
 
-      // If selected warehouse was deactivated/deleted, deselect it
-      if (selectedWarehouse && !activeWarehouses.find(w => w.id === selectedWarehouse.id)) {
-        setSelectedWarehouse(activeWarehouses.length === 1 ? activeWarehouses[0] : null)
+      // If selected warehouse was deleted, deselect it
+      if (selectedWarehouse && !sortedWarehouses.find(w => w.id === selectedWarehouse.id)) {
+        setSelectedWarehouse(sortedWarehouses.length === 1 ? sortedWarehouses[0] : null)
       }
 
       // Auto-select if user has only 1 warehouse
-      if (!selectedWarehouse && activeWarehouses.length === 1) {
-        setSelectedWarehouse(activeWarehouses[0])
+      if (!selectedWarehouse && sortedWarehouses.length === 1) {
+        setSelectedWarehouse(sortedWarehouses[0])
       }
     } catch (error) {
       console.error("Error fetching warehouses:", error)
