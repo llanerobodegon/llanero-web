@@ -533,9 +533,9 @@ class DashboardService {
       }
     })
 
-    return Array.from(personMap.values()).sort(
-      (a, b) => b.totalDeliveries - a.totalDeliveries
-    )
+    return Array.from(personMap.values())
+      .map(row => ({ ...row, totalFeeUsd: Math.round(row.totalFeeUsd * 100) / 100 }))
+      .sort((a, b) => b.totalDeliveries - a.totalDeliveries)
   }
 }
 
