@@ -69,6 +69,11 @@ export interface DeliveryStatRow {
   totalFeeUsd: number
 }
 
+export interface DeliveryTypeStats {
+  delivery: number
+  pickup: number
+}
+
 class DashboardService {
   async getStats(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DashboardStats> {
     const now = new Date()
@@ -536,6 +541,41 @@ class DashboardService {
     return Array.from(personMap.values())
       .map(row => ({ ...row, totalFeeUsd: Math.round(row.totalFeeUsd * 100) / 100 }))
       .sort((a, b) => b.totalDeliveries - a.totalDeliveries)
+  }
+
+  async getDeliveryTypeStats(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DeliveryTypeStats> {
+    const now = new Date()
+    const startDate = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endDate = dateRange?.to ?? now
+
+    const end = new Date(endDate)
+    end.setHours(23, 59, 59, 999)
+
+    let query = supabase
+      .from("orders")
+      .select("delivery_type")
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", end.toISOString())
+      .not("status", "eq", "cancelled")
+
+    if (warehouseId) {
+      query = query.eq("warehouse_id", warehouseId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching delivery type stats:", error)
+      return { delivery: 0, pickup: 0 }
+    }
+
+    const counts = { delivery: 0, pickup: 0 }
+    ;(data || []).forEach((row) => {
+      if (row.delivery_type === "delivery") counts.delivery++
+      else if (row.delivery_type === "pickup") counts.pickup++
+    })
+
+    return counts
   }
 }
 

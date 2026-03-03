@@ -10,6 +10,7 @@ import {
   DateRangeFilter,
   WarehouseSales,
   DeliveryStatRow,
+  DeliveryTypeStats,
 } from "@/src/services/dashboard.service"
 import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
@@ -20,6 +21,7 @@ interface UseReportsViewModelReturn {
   orders: ReportOrder[]
   warehouseSales: WarehouseSales[]
   deliveryStats: DeliveryStatRow[]
+  deliveryTypeStats: DeliveryTypeStats
   isLoading: boolean
   error: string | null
 }
@@ -32,6 +34,7 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
   const [orders, setOrders] = useState<ReportOrder[]>([])
   const [warehouseSales, setWarehouseSales] = useState<WarehouseSales[]>([])
   const [deliveryStats, setDeliveryStats] = useState<DeliveryStatRow[]>([])
+  const [deliveryTypeStats, setDeliveryTypeStats] = useState<DeliveryTypeStats>({ delivery: 0, pickup: 0 })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,25 +51,28 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
         dashboardService.getTopProducts(0, warehouseId, dateRange),
         dashboardService.getOrders(warehouseId, dateRange),
         dashboardService.getDeliveryStats(warehouseId, dateRange),
+        dashboardService.getDeliveryTypeStats(warehouseId, dateRange),
       ] as const
 
       if (!warehouseId) {
-        const [statsData, salesData, productsData, ordersData, deliveryStatsData, warehouseSalesData] =
+        const [statsData, salesData, productsData, ordersData, deliveryStatsData, deliveryTypeStatsData, warehouseSalesData] =
           await Promise.all([...basePromises, dashboardService.getSalesByWarehouse(dateRange)])
         setStats(statsData)
         setDailySales(salesData)
         setTopProducts(productsData)
         setOrders(ordersData)
         setDeliveryStats(deliveryStatsData)
+        setDeliveryTypeStats(deliveryTypeStatsData)
         setWarehouseSales(warehouseSalesData)
       } else {
-        const [statsData, salesData, productsData, ordersData, deliveryStatsData] =
+        const [statsData, salesData, productsData, ordersData, deliveryStatsData, deliveryTypeStatsData] =
           await Promise.all(basePromises)
         setStats(statsData)
         setDailySales(salesData)
         setTopProducts(productsData)
         setOrders(ordersData)
         setDeliveryStats(deliveryStatsData)
+        setDeliveryTypeStats(deliveryTypeStatsData)
         setWarehouseSales([])
       }
     } catch (err) {
@@ -88,6 +94,7 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
     orders,
     warehouseSales,
     deliveryStats,
+    deliveryTypeStats,
     isLoading,
     error,
   }
