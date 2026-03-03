@@ -19,6 +19,7 @@ import {
   Settings,
   AlertTriangle,
   Trash2,
+  Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -55,6 +56,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import {
   Order,
+  OrderBankAccount,
   OrderStatus,
   PaymentStatus,
   UpdateOrderData,
@@ -76,6 +78,54 @@ interface OrderDetailDrawerProps {
   onClose: () => void
   onUpdate: (id: string, data: UpdateOrderData) => Promise<Order>
   onDelete: (id: string) => Promise<void>
+}
+
+function BankAccountInfo({
+  bankAccount,
+  paymentMethodType,
+}: {
+  bankAccount: OrderBankAccount
+  paymentMethodType: string
+}) {
+  const isInternacional = bankAccount.scope === "internacional"
+  const scopeLabel = isInternacional ? "Internacional" : "Nacional"
+  const typeLabel = bankAccount.type === "zelle" ? "Zelle" : bankAccount.type === "banesco_panama" ? "Banesco Panamá" : null
+
+  return (
+    <div className="bg-muted/30 rounded-lg p-3 space-y-2 text-sm border-l-2 border-primary/40">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+        Cuenta destino ({scopeLabel}{typeLabel ? ` · ${typeLabel}` : ""})
+      </p>
+      <p className="flex items-center gap-2">
+        <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+        <span className="font-medium">{bankAccount.holderName}</span>
+      </p>
+      {bankAccount.rif && (
+        <p>
+          <span className="text-muted-foreground">RIF:</span>{" "}
+          <span className="font-medium font-mono">{bankAccount.rif}</span>
+        </p>
+      )}
+      {bankAccount.bank && (
+        <p>
+          <span className="text-muted-foreground">Banco:</span>{" "}
+          <span className="font-medium">{bankAccount.bank}</span>
+        </p>
+      )}
+      {paymentMethodType === "pago_movil" && bankAccount.pagoMovilPhone && (
+        <p>
+          <span className="text-muted-foreground">Teléfono:</span>{" "}
+          <span className="font-medium font-mono">{bankAccount.pagoMovilPhone}</span>
+        </p>
+      )}
+      {(paymentMethodType === "transferencia" || isInternacional) && (
+        <p>
+          <span className="text-muted-foreground">N° Cuenta:</span>{" "}
+          <span className="font-medium font-mono">{bankAccount.accountNumber}</span>
+        </p>
+      )}
+    </div>
+  )
 }
 
 const ORDER_STATUSES: OrderStatus[] = [
@@ -313,24 +363,37 @@ export function OrderDetailDrawer({
                       <CreditCard className="h-4 w-4" />
                       Información de Pago
                     </h4>
+
+                    {/* Destination bank account */}
+                    {order.bankAccount && (
+                      <BankAccountInfo
+                        bankAccount={order.bankAccount}
+                        paymentMethodType={order.paymentMethodType}
+                      />
+                    )}
+
+                    {/* Customer payment details */}
                     <div className="bg-muted/30 rounded-lg p-3 space-y-2 text-sm">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                        Datos del pago
+                      </p>
                       <p>
                         <span className="text-muted-foreground">Método:</span>{" "}
                         <span className="font-medium">{getPaymentMethodLabel(order.paymentMethodType)}</span>
                       </p>
                       {order.paymentBank && (
                         <p>
-                          <span className="text-muted-foreground">Banco:</span>{" "}
+                          <span className="text-muted-foreground">Banco emisor:</span>{" "}
                           <span className="font-medium">{order.paymentBank}</span>
                         </p>
                       )}
                       {order.paymentReference && (
                         <p>
                           <span className="text-muted-foreground">Referencia:</span>{" "}
-                          <span className="font-medium">****{order.paymentReference}</span>
+                          <span className="font-medium font-mono">{order.paymentReference}</span>
                         </p>
                       )}
-                      <p className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">Comprobante:</span>{" "}
                         {order.paymentProofUrl ? (
                           <a
@@ -345,7 +408,7 @@ export function OrderDetailDrawer({
                         ) : (
                           <span className="text-muted-foreground italic">No adjunto</span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
 

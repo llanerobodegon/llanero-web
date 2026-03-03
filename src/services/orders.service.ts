@@ -50,6 +50,20 @@ export interface OrderDeliveryPerson {
   lastName: string
 }
 
+export type BankAccountScope = "nacional" | "internacional"
+export type BankAccountType = "zelle" | "banesco_panama"
+
+export interface OrderBankAccount {
+  id: string
+  holderName: string
+  rif: string | null
+  bank: string | null
+  accountNumber: string
+  pagoMovilPhone: string | null
+  scope: BankAccountScope
+  type: BankAccountType | null
+}
+
 export interface Order {
   id: string
   orderNumber: string
@@ -65,6 +79,7 @@ export interface Order {
   paymentBank: string | null
   paymentReference: string | null
   paymentProofUrl: string | null
+  bankAccount: OrderBankAccount | null
   subtotalUsd: number
   subtotalBs: number
   deliveryFeeUsd: number
@@ -128,6 +143,7 @@ function mapRowToOrder(row: any): Order {
   const warehouse = row.warehouses
   const address = row.addresses
   const deliveryPerson = row.delivery_person
+  const bankAccount = row.bank_accounts
 
   return {
     id: row.id,
@@ -174,6 +190,16 @@ function mapRowToOrder(row: any): Order {
     paymentBank: row.payment_bank,
     paymentReference: row.payment_reference,
     paymentProofUrl: row.payment_proof_url,
+    bankAccount: bankAccount ? {
+      id: bankAccount.id,
+      holderName: bankAccount.holder_name,
+      rif: bankAccount.rif,
+      bank: bankAccount.bank,
+      accountNumber: bankAccount.account_number,
+      pagoMovilPhone: bankAccount.pago_movil_phone,
+      scope: bankAccount.scope,
+      type: bankAccount.type,
+    } : null,
     subtotalUsd: parseFloat(row.subtotal_usd),
     subtotalBs: parseFloat(row.subtotal_bs),
     deliveryFeeUsd: parseFloat(row.delivery_fee_usd || 0),
@@ -312,6 +338,16 @@ class OrdersService {
           address_line_1,
           address_line_2,
           city
+        ),
+        bank_accounts (
+          id,
+          holder_name,
+          rif,
+          bank,
+          account_number,
+          pago_movil_phone,
+          scope,
+          type
         ),
         order_items (
           id,
