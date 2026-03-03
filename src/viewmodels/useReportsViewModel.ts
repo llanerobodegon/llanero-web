@@ -9,6 +9,7 @@ import {
   ReportOrder,
   DateRangeFilter,
   WarehouseSales,
+  DeliveryStatRow,
 } from "@/src/services/dashboard.service"
 import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 
@@ -18,6 +19,7 @@ interface UseReportsViewModelReturn {
   topProducts: TopProduct[]
   orders: ReportOrder[]
   warehouseSales: WarehouseSales[]
+  deliveryStats: DeliveryStatRow[]
   isLoading: boolean
   error: string | null
 }
@@ -29,6 +31,7 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
   const [orders, setOrders] = useState<ReportOrder[]>([])
   const [warehouseSales, setWarehouseSales] = useState<WarehouseSales[]>([])
+  const [deliveryStats, setDeliveryStats] = useState<DeliveryStatRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,23 +47,26 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
         dashboardService.getSalesLast7Days(warehouseId, dateRange),
         dashboardService.getTopProducts(0, warehouseId, dateRange),
         dashboardService.getOrders(warehouseId, dateRange),
+        dashboardService.getDeliveryStats(warehouseId, dateRange),
       ] as const
 
       if (!warehouseId) {
-        const [statsData, salesData, productsData, ordersData, warehouseSalesData] =
+        const [statsData, salesData, productsData, ordersData, deliveryStatsData, warehouseSalesData] =
           await Promise.all([...basePromises, dashboardService.getSalesByWarehouse(dateRange)])
         setStats(statsData)
         setDailySales(salesData)
         setTopProducts(productsData)
         setOrders(ordersData)
+        setDeliveryStats(deliveryStatsData)
         setWarehouseSales(warehouseSalesData)
       } else {
-        const [statsData, salesData, productsData, ordersData] =
+        const [statsData, salesData, productsData, ordersData, deliveryStatsData] =
           await Promise.all(basePromises)
         setStats(statsData)
         setDailySales(salesData)
         setTopProducts(productsData)
         setOrders(ordersData)
+        setDeliveryStats(deliveryStatsData)
         setWarehouseSales([])
       }
     } catch (err) {
@@ -81,6 +87,7 @@ export function useReportsViewModel(dateRange?: DateRangeFilter): UseReportsView
     topProducts,
     orders,
     warehouseSales,
+    deliveryStats,
     isLoading,
     error,
   }
