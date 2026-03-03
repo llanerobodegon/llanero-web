@@ -62,6 +62,13 @@ export interface ReportOrder {
   createdAt: string
 }
 
+export interface DeliveryStatRow {
+  deliveryPersonId: string
+  deliveryPersonName: string
+  totalDeliveries: number
+  totalFeeUsd: number
+}
+
 class DashboardService {
   async getStats(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DashboardStats> {
     const now = new Date()
@@ -464,6 +471,71 @@ class DashboardService {
         createdAt: row.created_at,
       }
     })
+  }
+
+  async getDeliveryStats(warehouseId?: string, dateRange?: DateRangeFilter): Promise<DeliveryStatRow[]> {
+    const now = new Date()
+    const startDate = dateRange?.from ?? new Date(now.getFullYear(), now.getMonth(), 1)
+    const endDate = dateRange?.to ?? now
+
+    const end = new Date(endDate)
+    end.setHours(23, 59, 59, 999)
+
+    let query = supabase
+      .from("orders")
+      .select(`
+        delivery_person_id,
+        delivery_fee_usd,
+        users!orders_delivery_person_id_fkey (
+          first_name,
+          last_name
+        )
+      `)
+      .eq("delivery_type", "delivery")
+      .eq("status", "completed")
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", end.toISOString())
+      .not("delivery_person_id", "is", null)
+
+    if (warehouseId) {
+      query = query.eq("warehouse_id", warehouseId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error("Error fetching delivery stats:", error)
+      return []
+    }
+
+    const personMap = new Map<string, DeliveryStatRow>()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(data || []).forEach((row: any) => {
+      const personId = row.delivery_person_id
+      const user = row.users as { first_name: string; last_name: string } | null
+      const name = user
+        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+        : "Repartidor"
+      const fee = parseFloat(row.delivery_fee_usd || 0)
+
+      const existing = personMap.get(personId)
+      if (existing) {
+        existing.totalDeliveries += 1
+        existing.totalFeeUsd += fee
+      } else {
+        personMap.set(personId, {
+          deliveryPersonId: personId,
+          deliveryPersonName: name,
+          totalDeliveries: 1,
+          totalFeeUsd: fee,
+        })
+      }
+    })
+
+    return Array.from(personMap.values()).sort(
+      (a, b) => b.totalDeliveries - a.totalDeliveries
+    )
   }
 }
 
