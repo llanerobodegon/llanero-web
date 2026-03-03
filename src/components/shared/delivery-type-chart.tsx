@@ -27,10 +27,24 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { DeliveryTypeStats } from "@/src/services/dashboard.service"
 
+// Variaciones del color primario de la app (hue 17 = rojo-marrón)
+// Light: primary = oklch(0.33 0.15 17)
 const chartConfig = {
   count: { label: "Pedidos" },
-  delivery: { label: "Delivery", color: "var(--chart-1)" },
-  pickup: { label: "Pickup", color: "var(--chart-2)" },
+  delivery: {
+    label: "Delivery",
+    theme: {
+      light: "oklch(0.33 0.15 17)",   // primary exact
+      dark: "oklch(0.65 0.18 17)",    // más claro sobre fondo oscuro
+    },
+  },
+  pickup: {
+    label: "Pickup",
+    theme: {
+      light: "oklch(0.58 0.13 17)",   // variación más clara
+      dark: "oklch(0.45 0.13 17)",    // más oscuro sobre fondo oscuro
+    },
+  },
 } satisfies ChartConfig
 
 interface DeliveryTypeChartProps {
