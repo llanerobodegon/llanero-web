@@ -19,6 +19,7 @@ import { SalesChart } from "@/src/components/shared/sales-chart"
 import { WarehouseSalesChart } from "@/src/components/shared/warehouse-sales-chart"
 import { TopProductsTable } from "@/src/components/shared/top-products-table"
 import { OrdersTable } from "@/src/components/shared/orders-table"
+import { DeliveryStatsTable } from "@/src/components/shared/delivery-stats-table"
 import { useWarehouseContext } from "@/src/contexts/warehouse-context"
 import { useExportPdf } from "@/src/hooks/useExportPdf"
 import { ReportPrintView } from "@/src/components/reports/report-print-view"
@@ -39,7 +40,7 @@ export function ReportsContent() {
     return undefined
   }, [date?.from, date?.to])
 
-  const { stats, dailySales, topProducts, orders, warehouseSales, isLoading, error } = useReportsViewModel(dateRangeFilter)
+  const { stats, dailySales, topProducts, orders, warehouseSales, deliveryStats, isLoading, error } = useReportsViewModel(dateRangeFilter)
 
   const handleExport = () => {
     const warehousePart = selectedWarehouse ? selectedWarehouse.name.replace(/\s+/g, "_") : "todos"
@@ -188,6 +189,9 @@ export function ReportsContent() {
 
       {/* Orders */}
       <OrdersTable orders={orders} isLoading={isLoading} />
+
+      {/* Delivery Stats */}
+      <DeliveryStatsTable deliveryStats={deliveryStats} isLoading={isLoading} />
 
       {/* Hidden print view for PDF export */}
       {stats && date?.from && date?.to && (
