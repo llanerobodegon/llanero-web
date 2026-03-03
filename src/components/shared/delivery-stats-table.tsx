@@ -1,8 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { ArrowUpDown, Package } from "lucide-react"
+import { useState, useMemo } from "react"
+import { ArrowUpDown, Truck } from "lucide-react"
 import { DeliveryStatRow } from "@/src/services/dashboard.service"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -36,33 +42,51 @@ export function DeliveryStatsTable({ deliveryStats, isLoading }: DeliveryStatsTa
     }
   }
 
-  const sorted = [...deliveryStats].sort((a, b) => {
-    const valA = a[sortKey]
-    const valB = b[sortKey]
-    const dir = sortDir === "asc" ? 1 : -1
-    if (typeof valA === "string" && typeof valB === "string") {
-      return valA.localeCompare(valB) * dir
-    }
-    return ((valA as number) - (valB as number)) * dir
-  })
+  const sorted = useMemo(() => {
+    return [...deliveryStats].sort((a, b) => {
+      const valA = a[sortKey]
+      const valB = b[sortKey]
+      const dir = sortDir === "asc" ? 1 : -1
+      if (typeof valA === "string" && typeof valB === "string") {
+        return valA.localeCompare(valB) * dir
+      }
+      return ((valA as number) - (valB as number)) * dir
+    })
+  }, [deliveryStats, sortKey, sortDir])
 
-  return (
-    <div className="rounded-xl border bg-card">
-      <div className="p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Package className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Reporte de Repartidores</h2>
-        </div>
-
-        {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+  if (isLoading) {
+    return (
+      <Card className="bg-muted/30">
+        <CardHeader className="pb-2">
+          <Skeleton className="h-5 w-48" />
+        </CardHeader>
+        <CardContent className="p-0 pb-4">
+          <div className="space-y-3 px-6">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16 ml-auto" />
+                <Skeleton className="h-4 w-16" />
+              </div>
             ))}
           </div>
-        ) : sorted.length === 0 ? (
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="bg-muted/30">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Truck className="h-5 w-5 text-muted-foreground" />
+          <CardTitle className="text-base">Reporte de Repartidores</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 pb-4">
+        {sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-            <Package className="h-10 w-10 mb-3 opacity-30" />
+            <Truck className="h-10 w-10 mb-3 opacity-30" />
             <p className="text-sm">No hay deliveries completados en este período</p>
           </div>
         ) : (
@@ -117,7 +141,7 @@ export function DeliveryStatsTable({ deliveryStats, isLoading }: DeliveryStatsTa
             </TableBody>
           </Table>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
