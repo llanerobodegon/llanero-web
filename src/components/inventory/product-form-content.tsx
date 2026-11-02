@@ -14,7 +14,9 @@ import {
   Barcode,
   Store,
   CirclePower,
+  Camera,
 } from "lucide-react"
+import { compressImage } from "@/lib/image-compression"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -106,7 +108,9 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([])
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([])
   const [imageError, setImageError] = useState<string | null>(null)
+  const [isProcessingImages, setIsProcessingImages] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   // Form state - Price
   const [price, setPrice] = useState("")
@@ -257,8 +261,16 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
 
   const totalImages = existingImageUrls.length + imageFiles.length
 
-  const handleFileSelect = (files: FileList | null) => {
-    if (!files) return
+  const readAsDataURL = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+
+  const handleFileSelect = async (files: File[]) => {
+    if (files.length === 0) return
 
     const remainingSlots = MAX_IMAGES - totalImages
     if (remainingSlots <= 0) {
@@ -266,43 +278,57 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
       return
     }
 
-    const filesToProcess = Array.from(files).slice(0, remainingSlots)
+    setImageError(null)
+    setIsProcessingImages(true)
+
     const newFiles: File[] = []
     const newPreviews: string[] = []
+    let lastError: string | null = null
 
-    filesToProcess.forEach((file) => {
-      const error = validateFile(file)
-      if (error) {
-        setImageError(error)
-        return
-      }
-
-      newFiles.push(file)
-
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        newPreviews.push(e.target?.result as string)
-        if (newPreviews.length === newFiles.length) {
-          setImageFiles((prev) => [...prev, ...newFiles])
-          setImagePreviews((prev) => [...prev, ...newPreviews])
+    try {
+      for (const original of files.slice(0, remainingSlots)) {
+        if (!original.type.startsWith("image/")) {
+          lastError = "Formato no válido. Usa PNG, JPG, GIF o WEBP"
+          continue
         }
-      }
-      reader.readAsDataURL(file)
-    })
 
-    setImageError(null)
+        let file = original
+        try {
+          file = await compressImage(original)
+        } catch {
+          // Keep the original; validation below decides if it's usable
+        }
+
+        const error = validateFile(file)
+        if (error) {
+          lastError = error
+          continue
+        }
+
+        newFiles.push(file)
+        newPreviews.push(await readAsDataURL(file))
+      }
+
+      if (newFiles.length > 0) {
+        setImageFiles((prev) => [...prev, ...newFiles])
+        setImagePreviews((prev) => [...prev, ...newPreviews])
+      }
+      setImageError(lastError)
+    } finally {
+      setIsProcessingImages(false)
+    }
   }
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFileSelect(e.target.files)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+    // Copy before clearing the input, otherwise the FileList is emptied
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ""
+    handleFileSelect(files)
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
-    handleFileSelect(e.dataTransfer.files)
+    handleFileSelect(Array.from(e.dataTransfer.files))
   }
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -556,7 +582,7 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
           >
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={!isFormValid || isSubmitting || isDeleting}>
+          <Button onClick={handleSubmit} disabled={!isFormValid || isSubmitting || isDeleting || isProcessingImages}>
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -696,7 +722,16 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                   onChange={handleFileInputChange}
                   className="hidden"
                   multiple
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isProcessingImages}
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                  disabled={isSubmitting || isProcessingImages}
                 />
 
                 {(existingImageUrls.length > 0 || imagePreviews.length > 0) && (
@@ -749,24 +784,48 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                 )}
 
                 {totalImages < MAX_IMAGES && (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                      isSubmitting
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:border-primary/50"
-                    }`}
-                  >
-                    <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      Arrastra imágenes o{" "}
-                      <span className="text-primary">selecciona archivos</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      PNG, JPG, GIF o WEBP (máx. 5MB, {MAX_IMAGES - totalImages} restantes)
-                    </p>
+                  <div className="space-y-2">
+                    <div
+                      onClick={() => {
+                        if (!isSubmitting && !isProcessingImages) fileInputRef.current?.click()
+                      }}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                        isSubmitting || isProcessingImages
+                          ? "opacity-50 cursor-not-allowed"
+                          : "hover:border-primary/50"
+                      }`}
+                    >
+                      {isProcessingImages ? (
+                        <Loader2 className="h-6 w-6 mx-auto text-muted-foreground mb-2 animate-spin" />
+                      ) : (
+                        <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {isProcessingImages ? (
+                          "Optimizando imagen..."
+                        ) : (
+                          <>
+                            Arrastra imágenes o{" "}
+                            <span className="text-primary">selecciona archivos</span>
+                          </>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, JPG, GIF o WEBP ({MAX_IMAGES - totalImages} restantes)
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => cameraInputRef.current?.click()}
+                      disabled={isSubmitting || isProcessingImages}
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      Tomar foto
+                    </Button>
                   </div>
                 )}
 
