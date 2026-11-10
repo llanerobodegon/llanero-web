@@ -504,6 +504,33 @@ class OrdersService {
 
 export const ordersService = new OrdersService()
 
+/** Bucket privado de los comprobantes que sube la app nueva. */
+const PAYMENT_RECEIPTS_BUCKET = "payment-receipts"
+/** Duración del enlace firmado de un comprobante (segundos). */
+const PAYMENT_PROOF_URL_TTL = 60 * 10
+
+/**
+ * URL para ver un comprobante de pago.
+ * - Comprobantes viejos (app 1.2.5): `payment_proof_url` es una URL pública y se usa tal cual.
+ * - Comprobantes nuevos: `payment_proof_url` es `payment-receipts/<uid>/<archivo>` (bucket
+ *   privado) y se crea un enlace firmado temporal; solo admin y gerentes pueden crearlo.
+ */
+export async function getPaymentProofUrl(value: string): Promise<string> {
+  if (/^https?:\/\//i.test(value)) return value
+
+  const prefix = `${PAYMENT_RECEIPTS_BUCKET}/`
+  const path = value.startsWith(prefix) ? value.slice(prefix.length) : value
+  const { data, error } = await supabase.storage
+    .from(PAYMENT_RECEIPTS_BUCKET)
+    .createSignedUrl(path, PAYMENT_PROOF_URL_TTL)
+
+  if (error || !data) {
+    console.error("Error creating payment proof URL:", error)
+    throw new Error("No se pudo abrir el comprobante")
+  }
+  return data.signedUrl
+}
+
 // Helper functions for display
 export function getStatusLabel(status: OrderStatus): string {
   const labels: Record<OrderStatus, string> = {
