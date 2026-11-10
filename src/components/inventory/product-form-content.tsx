@@ -728,7 +728,6 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                   ref={cameraInputRef}
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handleFileInputChange}
                   className="hidden"
                   disabled={isSubmitting || isProcessingImages}
