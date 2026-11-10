@@ -68,6 +68,7 @@ import {
   getPaymentMethodLabel,
   formatCurrency,
   formatDateTime,
+  getPaymentProofUrl,
 } from "@/src/services/orders.service"
 
 interface OrderDetailDrawerProps {
@@ -149,6 +150,7 @@ export function OrderDetailDrawer({
 }: OrderDetailDrawerProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isOpeningProof, setIsOpeningProof] = useState(false)
   const [activeTab, setActiveTab] = useState("details")
   const [status, setStatus] = useState<OrderStatus | "">("")
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | "">("")
@@ -215,6 +217,27 @@ export function OrderDetailDrawer({
       toast.error("Error al eliminar el pedido")
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleOpenPaymentProof = async (value: string) => {
+    // La pestaña se abre antes de esperar el enlace firmado para que el navegador no la bloquee.
+    const tab = window.open("", "_blank")
+    setIsOpeningProof(true)
+    try {
+      const url = await getPaymentProofUrl(value)
+      if (tab) {
+        tab.opener = null
+        tab.location.href = url
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer")
+      }
+    } catch (err) {
+      tab?.close()
+      console.error("Error opening payment proof:", err)
+      toast.error("No se pudo abrir el comprobante")
+    } finally {
+      setIsOpeningProof(false)
     }
   }
 
@@ -396,15 +419,19 @@ export function OrderDetailDrawer({
                       <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">Comprobante:</span>{" "}
                         {order.paymentProofUrl ? (
-                          <a
-                            href={order.paymentProofUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline inline-flex items-center gap-1 font-medium"
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPaymentProof(order.paymentProofUrl!)}
+                            disabled={isOpeningProof}
+                            className="text-primary hover:underline inline-flex items-center gap-1 font-medium disabled:opacity-60"
                           >
-                            <ImageIcon className="h-3 w-3" />
+                            {isOpeningProof ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <ImageIcon className="h-3 w-3" />
+                            )}
                             Ver imagen
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-muted-foreground italic">No adjunto</span>
                         )}
