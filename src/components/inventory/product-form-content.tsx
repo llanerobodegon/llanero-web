@@ -15,6 +15,7 @@ import {
   Store,
   CirclePower,
   Camera,
+  Aperture,
 } from "lucide-react"
 import { compressImage } from "@/lib/image-compression"
 import { Button } from "@/components/ui/button"
@@ -81,6 +82,10 @@ interface ProductFormContentProps {
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+// Abre la app Android "Foto Producto" (proyecto foto-producto). La foto queda en
+// la galería y luego se elige con "Tomar foto" → "Fotos y videos".
+const FOTO_PRODUCTO_URL =
+  "intent://abrir#Intent;scheme=fotoproducto;package=com.castejon.fotoproducto;end"
 const MAX_IMAGES = 4
 
 export function ProductFormContent({ productId }: ProductFormContentProps) {
@@ -111,6 +116,10 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
   const [isProcessingImages, setIsProcessingImages] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const [isAndroid, setIsAndroid] = useState(false)
+  useEffect(() => {
+    setIsAndroid(/Android/i.test(navigator.userAgent))
+  }, [])
 
   // Form state - Price
   const [price, setPrice] = useState("")
@@ -828,6 +837,14 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                       <Camera className="h-4 w-4 mr-2" />
                       Tomar foto
                     </Button>
+                    {isAndroid && (
+                      <Button asChild variant="outline" className="w-full">
+                        <a href={FOTO_PRODUCTO_URL}>
+                          <Aperture className="h-4 w-4 mr-2" />
+                          Abrir Foto Producto
+                        </a>
+                      </Button>
+                    )}
                   </div>
                 )}
 
