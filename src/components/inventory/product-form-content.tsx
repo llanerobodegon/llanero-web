@@ -727,7 +727,10 @@ export function ProductFormContent({ productId }: ProductFormContentProps) {
                 <input
                   ref={cameraInputRef}
                   type="file"
-                  accept="image/*"
+                  // Sin `capture` y con un tipo no-imagen para que Chrome en Android
+                  // muestre el menú con Cámara y apps (Foto Producto) en vez de la
+                  // galería de fotos. handleFileSelect descarta lo que no sea imagen.
+                  accept="image/*,application/octet-stream"
                   onChange={handleFileInputChange}
                   className="hidden"
                   disabled={isSubmitting || isProcessingImages}
