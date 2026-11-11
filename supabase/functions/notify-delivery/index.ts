@@ -6,12 +6,27 @@ interface RequestBody {
   order_id: string
   order_number: string
   delivery_person_id: string
+  /** Qué se le avisa al repartidor. Sin este campo se asume `assigned` (llamadas antiguas). */
+  type?: "assigned" | "cancelled"
+}
+
+const MESSAGES: Record<string, { title: string; body: (orderNumber: string) => string }> = {
+  assigned: {
+    title: "Nuevo pedido asignado",
+    body: (n) => `Se te ha asignado el pedido #${n}`,
+  },
+  cancelled: {
+    title: "Pedido cancelado",
+    body: (n) => `El pedido #${n} fue cancelado. Ya no tienes que entregarlo`,
+  },
 }
 
 Deno.serve(async (req: Request) => {
   try {
     const body: RequestBody = await req.json()
     const { order_id, order_number, delivery_person_id } = body
+    const type = body.type && MESSAGES[body.type] ? body.type : "assigned"
+    const message = MESSAGES[type]
 
     if (!order_id || !order_number || !delivery_person_id) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -57,9 +72,9 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         to: user.push_token,
-        title: "Nuevo pedido asignado",
-        body: `Se te ha asignado el pedido #${order_number}`,
-        data: { order_id, order_number },
+        title: message.title,
+        body: message.body(order_number),
+        data: { order_id, order_number, type },
         sound: "default",
         priority: "high",
       }),

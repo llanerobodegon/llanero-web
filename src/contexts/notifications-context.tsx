@@ -81,15 +81,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
           setNotifications((prev) => [notifWithRead, ...prev])
 
-          playNotificationSound()
-
-          const toastMessage = newNotif.title
-          const toastDescription = newNotif.description ?? undefined
-
+          // Solo un pedido nuevo suena y muestra el aviso. Lo demás (cambios de estado, que
+          // casi siempre hace el propio equipo desde aquí) queda en la campana, en silencio.
           if (newNotif.type === "order_created") {
-            toast.info(toastMessage, { description: toastDescription, duration: 5000 })
-          } else {
-            toast.message(toastMessage, { description: toastDescription, duration: 4000 })
+            playNotificationSound()
+            toast.info(newNotif.title, {
+              description: newNotif.description ?? undefined,
+              duration: 8000,
+            })
           }
         }
       )
