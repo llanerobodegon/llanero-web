@@ -8,10 +8,13 @@ import { notificationsService, NotificationRow } from "@/src/services/notificati
 export type { NotificationRow as AppNotification }
 
 interface NotificationsContextType {
+  /** Pedidos que han llegado y siguen pendientes de revisar (los ya vistos no se listan). */
   notifications: NotificationRow[]
   unreadCount: number
+  /** Quita una notificación de la lista (queda como vista para este usuario). */
   markAsRead: (id: string) => void
-  markAllAsRead: () => void
+  /** "Limpiar": quita todas las pendientes. */
+  clearAll: () => void
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined)
@@ -76,20 +79,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
           const newNotif = payload.new as NotificationRow
-          // Mark as unread since it just arrived
-          const notifWithRead: NotificationRow = { ...newNotif, read: false }
+          // Solo los pedidos nuevos se avisan: suenan, muestran el aviso y quedan pendientes
+          // en la campana. Los cambios de estado (que casi siempre hace el propio equipo desde
+          // aquí) no generan aviso.
+          if (newNotif.type !== "order_created") return
 
-          setNotifications((prev) => [notifWithRead, ...prev])
-
-          // Solo un pedido nuevo suena y muestra el aviso. Lo demás (cambios de estado, que
-          // casi siempre hace el propio equipo desde aquí) queda en la campana, en silencio.
-          if (newNotif.type === "order_created") {
-            playNotificationSound()
-            toast.info(newNotif.title, {
-              description: newNotif.description ?? undefined,
-              duration: 8000,
-            })
-          }
+          setNotifications((prev) =>
+            prev.some((n) => n.id === newNotif.id) ? prev : [{ ...newNotif, read: false }, ...prev]
+          )
+          playNotificationSound()
+          toast.info(newNotif.title, {
+            description: newNotif.description ?? undefined,
+            duration: 8000,
+          })
         }
       )
       .subscribe()
@@ -99,25 +101,40 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const markAsRead = useCallback(async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    )
-    await notificationsService.markAsRead(id)
-  }, [])
+  // Si no se pudo guardar, se vuelve a cargar la lista real en vez de dejarla desfasada.
+  const markAsRead = useCallback(
+    async (id: string) => {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+      try {
+        await notificationsService.markAsRead(id)
+      } catch (err) {
+        console.error("Error marking notification as read:", err)
+        fetchNotifications()
+      }
+    },
+    [fetchNotifications]
+  )
 
-  const markAllAsRead = useCallback(async () => {
+  const clearAll = useCallback(async () => {
     const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
     if (unreadIds.length === 0) return
 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-    await notificationsService.markAllAsRead(unreadIds)
-  }, [notifications])
+    try {
+      await notificationsService.markAllAsRead(unreadIds)
+    } catch (err) {
+      console.error("Error clearing notifications:", err)
+      toast.error("No se pudieron limpiar las notificaciones")
+      fetchNotifications()
+    }
+  }, [notifications, fetchNotifications])
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  // Solo las pendientes: una notificación vista o limpiada sale de la lista.
+  const pending = notifications.filter((n) => !n.read)
+  const unreadCount = pending.length
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
+    <NotificationsContext.Provider value={{ notifications: pending, unreadCount, markAsRead, clearAll }}>
       {children}
     </NotificationsContext.Provider>
   )

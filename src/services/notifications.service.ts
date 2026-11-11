@@ -16,9 +16,11 @@ const supabase = createClient()
 
 export const notificationsService = {
   async getAll(): Promise<NotificationRow[]> {
+    // La campana avisa de pedidos que han llegado; los cambios de estado no se listan.
     const { data: notifs, error } = await supabase
       .from("notifications")
       .select("*")
+      .eq("type", "order_created")
       .order("created_at", { ascending: false })
       .limit(50)
 
@@ -44,19 +46,27 @@ export const notificationsService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    await supabase
+    // `ignoreDuplicates`: si ya estaba marcada no se intenta actualizar la fila (las reglas
+    // de la tabla solo permiten insertar y leer las propias).
+    const { error } = await supabase
       .from("notification_reads")
-      .upsert({ notification_id: notificationId, user_id: user.id })
+      .upsert(
+        { notification_id: notificationId, user_id: user.id },
+        { onConflict: "notification_id,user_id", ignoreDuplicates: true }
+      )
+    if (error) throw error
   },
 
   async markAllAsRead(notificationIds: string[]): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || notificationIds.length === 0) return
 
-    await supabase
+    const { error } = await supabase
       .from("notification_reads")
       .upsert(
-        notificationIds.map((id) => ({ notification_id: id, user_id: user.id }))
+        notificationIds.map((id) => ({ notification_id: id, user_id: user.id })),
+        { onConflict: "notification_id,user_id", ignoreDuplicates: true }
       )
+    if (error) throw error
   },
 }

@@ -54,7 +54,7 @@ function formatRelativeTime(date: Date): string {
 export function AdminHeader() {
   const pathname = usePathname()
   const { overrides } = useBreadcrumb()
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+  const { notifications, unreadCount, markAsRead, clearAll } = useNotifications()
   const segments = pathname.split("/").filter(Boolean)
 
   // Filter out segments we want to skip
@@ -104,7 +104,9 @@ export function AdminHeader() {
         </Breadcrumb>
       </div>
       <div className="flex items-center gap-2 px-4">
-        <Drawer direction="right" onOpenChange={(open) => open && markAllAsRead()}>
+        {/* Abrir la campana no marca nada como visto: los pedidos siguen pendientes hasta
+            tocarlos o usar "Limpiar". */}
+        <Drawer direction="right">
           <DrawerTrigger asChild>
             <Button variant="ghost" size="icon" className="relative cursor-pointer">
               <Bell className="h-5 w-5" />
@@ -116,14 +118,19 @@ export function AdminHeader() {
             </Button>
           </DrawerTrigger>
           <DrawerContent>
-            <DrawerHeader className="border-b">
+            <DrawerHeader className="flex-row items-center justify-between border-b">
               <DrawerTitle>Notificaciones</DrawerTitle>
+              {notifications.length > 0 && (
+                <Button variant="ghost" size="sm" className="cursor-pointer" onClick={clearAll}>
+                  Limpiar
+                </Button>
+              )}
             </DrawerHeader>
             <div className="no-scrollbar overflow-y-auto">
               {notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
                   <Bell className="h-8 w-8 text-muted-foreground/40 mb-3" />
-                  <p className="text-sm text-muted-foreground">No tienes notificaciones nuevas.</p>
+                  <p className="text-sm text-muted-foreground">No tienes pedidos nuevos por revisar.</p>
                 </div>
               ) : (
                 notifications.map((notification) => {
@@ -133,7 +140,8 @@ export function AdminHeader() {
                     <div
                       key={notification.id}
                       onClick={() => markAsRead(notification.id)}
-                      className={`flex gap-3 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/30 transition-colors ${!notification.read ? "bg-muted/40" : ""}`}
+                      title="Marcar como visto"
+                      className="flex gap-3 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-muted/30 transition-colors"
                     >
                       <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isCreated ? "bg-primary/10" : "bg-orange-500/10"}`}>
                         {isCreated
@@ -146,9 +154,7 @@ export function AdminHeader() {
                         <p className="text-sm text-muted-foreground">{notification.description}</p>
                         <p className="text-xs text-muted-foreground mt-1">{relativeTime}</p>
                       </div>
-                      {!notification.read && (
-                        <span className="ml-auto mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                      )}
+                      <span className="ml-auto mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
                     </div>
                   )
                 })
