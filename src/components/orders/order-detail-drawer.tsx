@@ -193,7 +193,16 @@ export function OrderDetailDrawer({
       }
 
       if (Object.keys(updateData).length > 0) {
-        await onUpdate(order.id, updateData)
+        const updated = await onUpdate(order.id, updateData)
+        // El guardado puede cambiar más de lo que se envió (verificar el pago confirma el
+        // pedido). Se vuelve a llenar el formulario con lo que quedó guardado; si no, el estado
+        // viejo del formulario se enviaría en el siguiente guardado y revertiría el pedido.
+        if (updated) {
+          setStatus(updated.status)
+          setPaymentStatus(updated.paymentStatus)
+          setDeliveryPersonId(updated.deliveryPerson?.id || "")
+          setAdminNotes(updated.adminNotes || "")
+        }
         toast.success("Pedido actualizado correctamente")
       }
     } catch (err) {
